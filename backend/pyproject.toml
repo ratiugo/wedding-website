@@ -1,0 +1,15 @@
+[tool.pylint.main]
+recursive = true
+
+[tool.pylint.typecheck]
+ignored-modules = ["psycopg"]
+
+[tool.pylint.basic]
+no-docstring-rgx = "^(_|test_)"
+good-names-rgxs = ["^do_[A-Z]+$"]
+
+[tool.pylint.design]
+min-public-methods = 1
+
+[tool.pylint.format]
+max-line-length = 88

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RSVP &middot; Tess &amp; Colton</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="index.html">T &amp; C</a>
+  </header>
+
+  <main class="section rsvp">
+    <h2>RSVP</h2>
+
+    <!-- Step 1: find the invitation (skipped when the link has ?invite_code=...) -->
+    <form id="lookup-form">
+      <label for="invite-code">Enter the code from your invitation</label>
+      <input id="invite-code" name="invite_code" autocomplete="off" autocapitalize="characters" maxlength="10" required>
+      <p class="error" id="lookup-error" hidden></p>
+      <button type="submit" class="button">Find my invitation</button>
+    </form>
+
+    <!-- Step 2: answer for each guest -->
+    <form id="rsvp-form" hidden>
+      <p class="greeting">Hello, <span id="invite-label"></span>!</p>
+      <div id="guest-list"></div>
+
+      <label for="notes">Anything else we should know? <span class="optional">(optional)</span></label>
+      <textarea id="notes" rows="3" maxlength="500"></textarea>
+
+      <p class="error" id="rsvp-error" hidden></p>
+      <button type="submit" class="button">Send RSVP</button>
+    </form>
+
+    <!-- Step 3: confirmation -->
+    <div id="thanks" hidden>
+      <p class="greeting" id="thanks-message"></p>
+      <button type="button" class="button button-secondary" id="edit-button">Change my response</button>
+    </div>
+  </main>
+
+  <!-- One of these is cloned per guest on the invitation -->
+  <template id="guest-template">
+    <fieldset class="guest">
+      <legend class="guest-name"></legend>
+      <label class="plus-one-name" hidden>
+        Guest's name
+        <input type="text" name="name" maxlength="100">
+      </label>
+      <div class="choices">
+        <label><input type="radio" value="yes" required> Joyfully accepts</label>
+        <label><input type="radio" value="no"> Regretfully declines</label>
+      </div>
+      <label class="dietary" hidden>
+        Dietary restrictions or allergies <span class="optional">(optional)</span>
+        <input type="text" name="dietary" maxlength="500">
+      </label>
+    </fieldset>
+  </template>
+
+  <script src="js/rsvp.js"></script>
+</body>
+</html>
