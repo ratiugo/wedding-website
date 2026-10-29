@@ -1,5 +1,5 @@
-# On every push to main: run the tests, deploy the site to dev, then wait for approval
-# before deploying the same commit to prod.
+# On every push to main: deploy the site to dev, then wait for approval before deploying
+# the same commit to prod. Tests already passed on the pull request (see ci.yml).
 name: Deploy
 
 on:
@@ -11,11 +11,7 @@ permissions:
   id-token: write
 
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-
   dev:
-    needs: ci
     runs-on: ubuntu-latest
     environment: dev
     steps:

@@ -1,10 +1,9 @@
 # Run the backend tests and linters on every pull request, with the same `make` commands
-# used locally. Pushes to main run this through deploy.yml, before deploying.
+# used locally. The main branch's ruleset requires this to pass before merging.
 name: CI
 
 on:
   pull_request:
-  workflow_call:
 
 # A newer push to the same branch or pull request cancels the older run.
 concurrency:
