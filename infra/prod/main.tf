@@ -1,0 +1,64 @@
+terraform {
+  required_version = ">= 1.10"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.71"
+    }
+  }
+
+  backend "s3" {
+    bucket       = "tessandcolton-terraform-state"
+    key          = "prod/terraform.tfstate"
+    region       = "us-west-2"
+    use_lockfile = true
+  }
+}
+
+provider "aws" {
+  region = "us-west-2"
+
+  default_tags {
+    tags = {
+      Project     = "wedding"
+      Environment = "prod"
+    }
+  }
+}
+
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+
+  default_tags {
+    tags = {
+      Project     = "wedding"
+      Environment = "prod"
+    }
+  }
+}
+
+module "wedding_website" {
+  source = "../modules/wedding_website"
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  environment = "prod"
+  domains     = ["tessandcolton.com", "www.tessandcolton.com"]
+}
+
+output "deploy_role_arn" {
+  value = module.wedding_website.deploy_role_arn
+}
+
+output "site_bucket" {
+  value = module.wedding_website.site_bucket
+}
+
+output "distribution_id" {
+  value = module.wedding_website.distribution_id
+}
