@@ -7,3 +7,8 @@ backend/data/guests.csv
 
 # Local settings (sheet id, key path)
 backend/.env
+
+# Terraform's downloaded providers and local state (real state lives in S3)
+.terraform/
+*.tfstate
+*.tfstate.backup

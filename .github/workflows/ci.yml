@@ -1,11 +1,10 @@
-# Run the backend tests and linters on every push to main and every pull request,
-# with the same `make` commands used locally.
+# Run the backend tests and linters on every pull request, with the same `make` commands
+# used locally. Pushes to main run this through deploy.yml, before deploying.
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_call:
 
 # A newer push to the same branch or pull request cancels the older run.
 concurrency:

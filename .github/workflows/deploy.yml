@@ -1,0 +1,42 @@
+# On every push to main: run the tests, deploy the site to dev, then wait for approval
+# before deploying the same commit to prod.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  dev:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+      - run: aws s3 sync frontend/ "s3://${{ vars.SITE_BUCKET }}" --delete
+      - run: aws cloudfront create-invalidation --distribution-id "${{ vars.DISTRIBUTION_ID }}" --paths "/*"
+
+  prod:
+    needs: dev
+    runs-on: ubuntu-latest
+    environment: prod
+    concurrency: prod
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+      - run: aws s3 sync frontend/ "s3://${{ vars.SITE_BUCKET }}" --delete
+      - run: aws cloudfront create-invalidation --distribution-id "${{ vars.DISTRIBUTION_ID }}" --paths "/*"
