@@ -1,5 +1,5 @@
 # On every push to main: deploy the site to dev, then wait for approval before deploying
-# the same commit to prod. Tests already passed on the pull request (see ci.yml).
+# the same commit to prod.
 name: Deploy
 
 on:
