@@ -15,7 +15,6 @@ backend/notifier/      Notifier Lambda: handler.py, emails.py, sheets.py
 backend/scripts/       dev_server.py (local site + API), setup_sheet.py (Google Sheet tabs)
 backend/data/          seed.sql (local example guests), guests.example.csv
 backend/docker-compose.yml   Local services, plus the test images
-infra/                 Terraform (see Infrastructure below)
 ```
 
 ## Running locally
@@ -39,21 +38,4 @@ The local database starts with three example invitations: invite codes `RIVERA`,
 make test    # pytest for both Lambdas (the database, S3, SES and Google are mocked)
 make format  # format the Python with black
 make lint    # check black and pylint
-```
-
-## Infrastructure
-
-Terraform, run by hand with the `Colton` AWS profile (`aws sso login` first).
-
-```
-infra/shared/                   Once per account: Terraform state bucket, GitHub sign-in
-infra/modules/wedding_website/  Everything that makes up one copy of the site
-infra/dev/, infra/prod/         Each creates one copy of the module
-```
-
-```sh
-cd infra/dev    # or infra/prod, or infra/shared
-terraform init  # once per folder, and after provider changes
-terraform plan  # show what would change
-terraform apply # show the plan again, then make the changes after you type "yes"
 ```
