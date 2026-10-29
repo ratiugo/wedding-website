@@ -27,13 +27,14 @@ services:
       target: runtime
     entrypoint: ["python", "/scripts/setup_sheet.py"]
     environment:
-      GOOGLE_SHEET_ID: ${GOOGLE_SHEET_ID}
+      GOOGLE_SHEET_ID: ${GOOGLE_SHEET_ID:-}
       GOOGLE_KEY_FILE: /secrets/google-key.json
       # Lets the script import sheets.py and gspread from the image.
       PYTHONPATH: /var/task
     volumes:
       - ./scripts:/scripts:ro
-      - ${GOOGLE_KEY_PATH}:/secrets/google-key.json:ro
+      # /dev/null when backend/.env doesn't set the key's path (as in CI), so the file still loads.
+      - ${GOOGLE_KEY_PATH:-/dev/null}:/secrets/google-key.json:ro
 
   # Fake S3 (moto server), in memory: `make start` recreates the bucket.
   s3:
