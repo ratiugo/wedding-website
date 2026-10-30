@@ -6,28 +6,19 @@ DOCKER ?= $(shell command -v docker || echo /Applications/Docker.app/Contents/Re
 export PATH := $(dir $(DOCKER)):$(PATH)
 COMPOSE = $(DOCKER) compose -f backend/docker-compose.yml
 
-.PHONY: start stop reset-db db sheet-setup test format lint
+.PHONY: start stop sheet-setup test format lint
 
-# Start the RSVP Lambda, Postgres and fake S3, create the S3 bucket, then serve the
-# site and API (Ctrl+C to stop).
+# Start the RSVP Lambda and fake AWS, create the bucket and the example invitations,
+# then serve the site and API (Ctrl+C to stop).
 start:
 	$(COMPOSE) up --build -d --wait --remove-orphans
-	$(COMPOSE) exec rsvp python -c \
-		"import boto3, os; boto3.client('s3').create_bucket(Bucket=os.environ['RSVP_BUCKET'])"
+	$(COMPOSE) exec rsvp python /scripts/local_aws.py
 	python3 backend/scripts/dev_server.py
 
-# Stop the containers. Data is kept; `$(COMPOSE) down -v` wipes it.
+# Stop the containers. The fake AWS keeps nothing, so the next start begins with just
+# the example invitations again.
 stop:
 	$(COMPOSE) down
-
-# Stop the containers and wipe the local database; the next `make start` reloads the
-# example guests from backend/data/seed.sql.
-reset-db:
-	$(COMPOSE) down -v
-
-# Open a SQL prompt on the local database.
-db:
-	$(COMPOSE) exec postgres psql -U wedding -d wedding
 
 # Create the Google Sheet's Guests and Summary tabs, if missing (GOOGLE_SHEET_ID in backend/.env).
 sheet-setup:

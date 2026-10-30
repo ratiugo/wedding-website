@@ -20,6 +20,7 @@ def invitations_fixture(monkeypatch):
     invitations = MagicMock()
     invitations.get.return_value.view.return_value = {"label": "Jamie"}
     monkeypatch.setattr(handler, "Invitation", invitations)
+    monkeypatch.setattr(handler, "RSVP_OPEN", True)
     return invitations
 
 
@@ -62,3 +63,10 @@ def test_put_with_invalid_json_is_a_bad_request():
 def test_rejected_answers_are_a_bad_request_with_the_reason(invitations):
     invitations.get.return_value.respond.side_effect = BadRequest("Please answer.")
     assert call("PUT", '{"guests": []}') == (400, {"error": "Please answer."})
+
+
+def test_nothing_is_looked_up_while_rsvps_are_closed(invitations, monkeypatch):
+    monkeypatch.setattr(handler, "RSVP_OPEN", False)
+
+    assert call("GET") == (403, {"error": "RSVPs aren't open yet."})
+    invitations.get.assert_not_called()

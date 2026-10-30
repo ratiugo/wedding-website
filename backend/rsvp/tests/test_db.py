@@ -1,68 +1,74 @@
 """
-Database connection tests.
+Database tests, with a mock in place of the DynamoDB table.
 """
 
+from decimal import Decimal
 from unittest.mock import MagicMock
 
-import psycopg
 import pytest
 
-import db
 from db import Database
 
-URL = "postgresql://rsvp_app@aurora:5432/wedding"
+ITEM = {
+    "invite_code": "TEST01",
+    "label": "Jamie",
+    "notes": "",
+    "responded_at": None,
+    "guests": [
+        {
+            "id": Decimal(1),
+            "name": "Jamie Lee",
+            "plus_one": False,
+            "child": False,
+            "attending": None,
+            "dietary": "",
+        }
+    ],
+}
 
 
-def dropped_connection():
+@pytest.fixture(name="table")
+def table_fixture():
     """
-    A mock connection the server has dropped: queries fail, and it says it's broken.
+    A mock DynamoDB table.
     """
-    conn = MagicMock(closed=False, broken=True)
-    conn.execute.side_effect = psycopg.OperationalError("server closed the connection")
-    conn.close.side_effect = lambda: setattr(conn, "closed", True)
-    return conn
+    return MagicMock()
 
 
-def test_a_dropped_connection_reconnects_and_runs_the_query_again(monkeypatch):
-    fresh = MagicMock(closed=False)
-    monkeypatch.setattr(
-        psycopg, "connect", MagicMock(side_effect=[dropped_connection(), fresh])
-    )
-
-    Database(URL).query("SELECT 1")
-
-    fresh.execute.assert_called_once_with("SELECT 1", ())
-
-
-def test_connect_retries_until_the_database_answers(monkeypatch):
-    resuming = psycopg.OperationalError("the database is resuming")
-    connect = MagicMock(side_effect=[resuming, resuming, "connection"])
-    monkeypatch.setattr(psycopg, "connect", connect)
-    monkeypatch.setattr(db.time, "sleep", lambda seconds: None)
-
-    assert Database(URL).connect() == "connection"
-    assert connect.call_count == 3
+@pytest.fixture(name="database")
+def database_fixture(table):
+    """
+    A Database using the mock table.
+    """
+    database = Database("invitations")
+    database.table = table
+    return database
 
 
-def test_connect_gives_up_after_the_deadline(monkeypatch):
-    unreachable = psycopg.OperationalError("the database is unreachable")
-    monkeypatch.setattr(psycopg, "connect", MagicMock(side_effect=unreachable))
-    monkeypatch.setattr(db, "CONNECT_DEADLINE", 0)
+def test_get_invitation_returns_the_item_with_int_guest_ids(database, table):
+    table.get_item.return_value = {"Item": ITEM}
 
-    with pytest.raises(psycopg.OperationalError):
-        Database(URL).connect()
+    invitation = database.get_invitation("TEST01")
+
+    table.get_item.assert_called_once_with(Key={"invite_code": "TEST01"})
+    assert invitation["guests"][0]["id"] == 1
+    assert isinstance(invitation["guests"][0]["id"], int)
 
 
-def test_iam_auth_signs_in_with_a_token_for_the_urls_user(monkeypatch):
-    rds = MagicMock()
-    rds.generate_db_auth_token.return_value = "token"
-    monkeypatch.setattr(db.boto3, "client", lambda service: rds)
-    connect = MagicMock()
-    monkeypatch.setattr(psycopg, "connect", connect)
+def test_get_unknown_invitation_returns_none(database, table):
+    table.get_item.return_value = {}
+    assert database.get_invitation("ZZZZZZ") is None
 
-    Database(URL, iam_auth=True).connect()
 
-    rds.generate_db_auth_token.assert_called_once_with(
-        DBHostname="aurora", Port=5432, DBUsername="rsvp_app"
-    )
-    assert connect.call_args.kwargs["password"] == "token"
+def test_save_response_updates_only_an_existing_invitation(database, table):
+    table.update_item.return_value = {"Attributes": ITEM}
+    guests = [{"id": 1, "attending": True}]
+
+    saved = database.save_response("TEST01", guests, "See you there")
+
+    kwargs = table.update_item.call_args.kwargs
+    assert kwargs["Key"] == {"invite_code": "TEST01"}
+    assert kwargs["ConditionExpression"] == "attribute_exists(invite_code)"
+    assert kwargs["ExpressionAttributeValues"][":guests"] == guests
+    assert kwargs["ExpressionAttributeValues"][":notes"] == "See you there"
+    assert saved["guests"][0]["id"] == 1

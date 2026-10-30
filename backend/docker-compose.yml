@@ -6,17 +6,20 @@ services:
     ports:
       - "9000:8080"
     environment:
-      DATABASE_URL: postgresql://wedding:wedding@postgres:5432/wedding
+      INVITATIONS_TABLE: wedding-invitations
       RSVP_BUCKET: wedding-rsvps
-      # boto3 sends S3 calls to the local fake S3 instead of AWS.
-      AWS_ENDPOINT_URL_S3: http://s3:5000
+      RSVP_OPEN: "true"
+      # boto3 sends every AWS call to the local fake AWS instead.
+      AWS_ENDPOINT_URL: http://aws:5000
       AWS_ACCESS_KEY_ID: local
       AWS_SECRET_ACCESS_KEY: local
       AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      # For `make start`, which runs scripts/local_aws.py here.
+      - ./scripts:/scripts:ro
+      - ./data:/data:ro
     depends_on:
-      postgres:
-        condition: service_healthy
-      s3:
+      aws:
         condition: service_healthy
 
   # `make sheet-setup`: create the Google Sheet's tabs (scripts/setup_sheet.py).
@@ -36,8 +39,9 @@ services:
       # /dev/null when backend/.env doesn't set the key's path (as in CI), so the file still loads.
       - ${GOOGLE_KEY_PATH:-/dev/null}:/secrets/google-key.json:ro
 
-  # Fake S3 (moto server), in memory: `make start` recreates the bucket.
-  s3:
+  # Fake AWS (moto server) for S3 and DynamoDB, in memory: `make start` recreates the
+  # bucket and table each time this container is created.
+  aws:
     image: motoserver/moto:5.2.4
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/moto-api/')"]
@@ -52,8 +56,9 @@ services:
       target: test
     command: ["rsvp/tests"]
     environment:
-      # The tests mock AWS; boto3 still needs a region to create its clients.
+      # The tests mock AWS; boto3 still needs a region and table name to set up.
       AWS_DEFAULT_REGION: us-east-1
+      INVITATIONS_TABLE: wedding-invitations
     volumes:
       - ./:/backend
 
@@ -70,24 +75,3 @@ services:
     volumes:
       - ./:/backend
 
-  postgres:
-    image: postgres:17.6
-    environment:
-      POSTGRES_USER: wedding
-      POSTGRES_PASSWORD: wedding
-      POSTGRES_DB: wedding
-    healthcheck:
-      test: ["CMD", "pg_isready", "-h", "localhost", "-U", "wedding", "-d", "wedding"]
-      interval: 2s
-      retries: 15
-    ports:
-      # Exposed so you can connect from your machine: psql postgresql://wedding:wedding@localhost:5432/wedding
-      - "5432:5432"
-    volumes:
-      # The tables and example guests are created with the volume. `docker compose down -v` to start over.
-      - pgdata:/var/lib/postgresql/data
-      - ./rsvp/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql:ro
-      - ./data/seed.sql:/docker-entrypoint-initdb.d/2-seed.sql:ro
-
-volumes:
-  pgdata:

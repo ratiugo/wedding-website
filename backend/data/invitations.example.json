@@ -1,0 +1,21 @@
+[
+  {
+    "invite_code": "RIVERA",
+    "label": "Morgan, Sam & Ellie",
+    "guests": [
+      { "name": "Morgan Rivera" },
+      { "name": "Sam Rivera" },
+      { "name": "Ellie Rivera", "child": true }
+    ]
+  },
+  {
+    "invite_code": "SHAHPD",
+    "label": "Priya & Dev",
+    "guests": [{ "name": "Priya Shah" }, { "name": "Dev Shah" }]
+  },
+  {
+    "invite_code": "JAMIE2",
+    "label": "Jamie",
+    "guests": [{ "name": "Jamie Lee" }, { "name": "Plus-one", "plus_one": true }]
+  }
+]

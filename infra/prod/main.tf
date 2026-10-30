@@ -49,6 +49,10 @@ module "wedding_website" {
 
   environment = "prod"
   domains     = ["tessandcolton.com", "www.tessandcolton.com"]
+
+  # The save-the-date until invitations go out; then index.html and rsvp_open = true.
+  home_page = "save-the-date.html"
+  rsvp_open = false
 }
 
 output "deploy_role_arn" {
