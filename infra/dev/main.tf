@@ -49,6 +49,10 @@ module "wedding_website" {
 
   environment = "dev"
   domains     = ["dev.tessandcolton.com"]
+
+  # The full site, with the save-the-date at /save-the-date.html.
+  home_page = "index.html"
+  rsvp_open = true
 }
 
 output "deploy_role_arn" {
@@ -65,4 +69,8 @@ output "distribution_id" {
 
 output "rsvp_function" {
   value = module.wedding_website.rsvp_function
+}
+
+output "invitations_table" {
+  value = module.wedding_website.invitations_table
 }

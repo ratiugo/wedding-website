@@ -19,10 +19,7 @@ from db import Database
 
 logger = logging.getLogger(__name__)
 
-database = Database(
-    os.environ.get("DATABASE_URL"),
-    iam_auth=os.environ.get("DATABASE_IAM_AUTH") == "true",
-)
+database = Database(os.environ["INVITATIONS_TABLE"])
 s3 = boto3.client("s3")
 RSVP_BUCKET = os.environ.get("RSVP_BUCKET")
 
@@ -42,7 +39,6 @@ class Invitation:
         """
         Hold an invitation's fields, from the dict Database.get_invitation returns.
         """
-        self.id = row["id"]
         self.invite_code = row["invite_code"]
         self.label = row["label"]
         self.notes = row["notes"]
@@ -55,7 +51,7 @@ class Invitation:
         Return the invitation for an invite code, or None if there isn't one.
 
         Spaces and case are ignored. Codes that can't be valid (anything but six
-        letters and digits) return None without touching, or waking, the database.
+        letters and digits) return None without a database lookup.
         """
         invite_code = "".join(invite_code.split()).upper()
         if len(invite_code) != 6 or not invite_code.isalnum():
@@ -71,9 +67,10 @@ class Invitation:
         invitation is uploaded to S3 as an "rsvp" event; if that fails it's logged
         instead, since the answers are already saved.
         """
-        answers = self.validate_answers(body)
-        database.save_response(self.id, answers, clean(body.get("notes")))
-        saved = Invitation.get(self.invite_code)
+        guests = self.validate_answers(body)
+        saved = Invitation(
+            database.save_response(self.invite_code, guests, clean(body.get("notes")))
+        )
         try:
             saved.publish(previous=self if self.responded_at else None)
         except (BotoCoreError, ClientError):
@@ -82,15 +79,14 @@ class Invitation:
 
     def validate_answers(self, body):
         """
-        Validate a request body's answers and return them ready to save.
+        Validate a request body's answers and return the guests with them filled in.
 
         The body must answer for every guest on this invitation, saying whether each
         is attending, and give a name for a plus-one who's coming. Otherwise this
         raises BadRequest, with a message for the guest.
 
-        Returns one {"id", "attending", "dietary", "plus_one_name"} dict per guest.
-        dietary is blank for guests who aren't coming, and plus_one_name is None
-        except for a plus-one who was given a name.
+        dietary is blank for guests who aren't coming. Only a plus-one's name can be
+        changed, and only when one is given.
         """
         try:
             answers = {answer["id"]: answer for answer in body["guests"]}
@@ -113,10 +109,10 @@ class Invitation:
 
             cleaned.append(
                 {
-                    "id": guest["id"],
+                    **guest,
+                    "name": plus_one_name or guest["name"],
                     "attending": attending,
                     "dietary": clean(answer.get("dietary")) if attending else "",
-                    "plus_one_name": plus_one_name or None,
                 }
             )
         return cleaned
@@ -152,11 +148,7 @@ class Invitation:
             "invite_code": self.invite_code,
             "label": self.label,
             "notes": self.notes,
-            "responded_at": (
-                self.responded_at.isoformat(timespec="seconds")
-                if self.responded_at
-                else None
-            ),
+            "responded_at": self.responded_at,
             "guests": self.guests,
         }
 

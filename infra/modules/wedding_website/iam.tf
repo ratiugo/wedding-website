@@ -99,13 +99,12 @@ resource "aws_iam_role" "rsvp" {
   })
 }
 
-# AWS's policy for Lambdas in a VPC: network interfaces in the subnets, and logs.
-resource "aws_iam_role_policy_attachment" "rsvp_vpc" {
+resource "aws_iam_role_policy_attachment" "rsvp_logs" {
   role       = aws_iam_role.rsvp.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Sign in to the database as rsvp_app (and no other user), and write RSVP events.
+# Read invitations and save responses, and write RSVP events.
 resource "aws_iam_role_policy" "rsvp" {
   name = "rsvp"
   role = aws_iam_role.rsvp.id
@@ -115,8 +114,8 @@ resource "aws_iam_role_policy" "rsvp" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = "rds-db:connect"
-        Resource = "arn:aws:rds-db:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:dbuser:${aws_rds_cluster.main.cluster_resource_id}/rsvp_app"
+        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.invitations.arn
       },
       {
         Effect   = "Allow"

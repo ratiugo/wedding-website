@@ -13,3 +13,7 @@ output "distribution_id" {
 output "rsvp_function" {
   value = aws_lambda_function.rsvp.function_name
 }
+
+output "invitations_table" {
+  value = aws_dynamodb_table.invitations.name
+}

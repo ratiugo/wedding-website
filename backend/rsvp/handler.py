@@ -6,11 +6,16 @@ Lambda serving the website's RSVP form.
 """
 
 import json
+import os
 
 from invitation import BadRequest, Invitation
 
 GET = "GET /rsvp/{invite_code}"
 PUT = "PUT /rsvp/{invite_code}"
+
+# Off in prod until invitations go out, so nobody can look up or answer an invitation
+# before then, even by finding the RSVP page.
+RSVP_OPEN = os.environ.get("RSVP_OPEN") == "true"
 
 
 def lambda_handler(event, _context):
@@ -20,6 +25,8 @@ def lambda_handler(event, _context):
     route = event.get("routeKey")
     if route not in (GET, PUT):
         return response(404, {"error": "Not found"})
+    if not RSVP_OPEN:
+        return response(403, {"error": "RSVPs aren't open yet."})
 
     invitation = Invitation.get(event["pathParameters"]["invite_code"])
     if invitation is None:

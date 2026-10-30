@@ -3,7 +3,6 @@ Invitation tests, with mocks in place of the database and S3.
 """
 
 import json
-from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -28,7 +27,6 @@ def guest(guest_id, name, plus_one=False, child=False):
 
 
 INVITATION = {
-    "id": 1,
     "invite_code": "TEST01",
     "label": "Morgan, Sam & Ellie",
     "notes": "",
@@ -41,7 +39,6 @@ INVITATION = {
 }
 
 INVITATION_WITH_PLUS_ONE = {
-    "id": 2,
     "invite_code": "TEST02",
     "label": "Jamie",
     "notes": "",
@@ -53,10 +50,17 @@ INVITATION_WITH_PLUS_ONE = {
 @pytest.fixture(name="database", autouse=True)
 def database_fixture(monkeypatch):
     """
-    A mock database, which returns INVITATION unless a test says otherwise.
+    A mock database, which returns INVITATION unless a test says otherwise, and
+    saves a response by returning the invitation with it filled in.
     """
     database = MagicMock()
     database.get_invitation.return_value = INVITATION
+    database.save_response.side_effect = lambda invite_code, guests, notes: {
+        **database.get_invitation.return_value,
+        "guests": guests,
+        "notes": notes,
+        "responded_at": "2026-10-26T01:00:00+00:00",
+    }
     monkeypatch.setattr(invitation, "database", database)
     return database
 
@@ -116,11 +120,11 @@ def test_first_rsvp_is_saved_and_published(database, s3):
     )
 
     database.save_response.assert_called_once_with(
-        1,
+        "TEST01",
         [
-            {"id": 1, "attending": True, "dietary": "", "plus_one_name": None},
-            {"id": 2, "attending": True, "dietary": "", "plus_one_name": None},
-            {"id": 3, "attending": False, "dietary": "", "plus_one_name": None},
+            {**guest(1, "Morgan Rivera"), "attending": True},
+            {**guest(2, "Sam Rivera"), "attending": True},
+            {**guest(3, "Ellie Rivera", child=True), "attending": False},
         ],
         "High chair?",
     )
@@ -130,11 +134,10 @@ def test_first_rsvp_is_saved_and_published(database, s3):
 
 
 def test_updated_rsvp_is_published_with_the_previous_response(database, s3):
-    previous = {
+    database.get_invitation.return_value = {
         **INVITATION,
-        "responded_at": datetime(2026, 10, 25, 1, 0, tzinfo=timezone.utc),
+        "responded_at": "2026-10-25T01:00:00+00:00",
     }
-    database.get_invitation.side_effect = [previous, INVITATION]
 
     saved = Invitation.get("TEST01").respond(
         {
@@ -163,8 +166,8 @@ def test_text_is_trimmed_and_dietary_dropped_for_guests_not_coming(database):
         }
     )
 
-    saved_answers, notes = database.save_response.call_args.args[1:]
-    assert [answer["dietary"] for answer in saved_answers] == ["Vegan", "", ""]
+    saved_guests, notes = database.save_response.call_args.args[1:]
+    assert [guest["dietary"] for guest in saved_guests] == ["Vegan", "", ""]
     assert notes == "hi"
 
 
@@ -245,8 +248,8 @@ def test_only_the_plus_one_can_be_named(database):
         }
     )
 
-    saved_answers = database.save_response.call_args.args[1]
-    assert [answer["plus_one_name"] for answer in saved_answers] == [None, "Alex"]
+    saved_guests = database.save_response.call_args.args[1]
+    assert [guest["name"] for guest in saved_guests] == ["Jamie Lee", "Alex"]
 
 
 def test_rsvp_is_saved_even_if_publishing_fails(database, s3, caplog):
