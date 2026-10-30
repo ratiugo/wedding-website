@@ -1,6 +1,4 @@
--- Example guests for local development, loaded after schema.sql when the Postgres
--- container is first created. The tables are new, so invitation ids are 1, 2 and 3,
--- and guest ids follow the order below (1-3 Riveras, 4-5 Shahs, 6-7 Jamie).
+-- Example guests for local development and the dev environment.
 INSERT INTO invitations (invite_code, label) VALUES
     ('RIVERA', 'Morgan, Sam & Ellie'),
     ('SHAHPD', 'Priya & Dev'),

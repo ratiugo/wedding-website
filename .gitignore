@@ -12,3 +12,5 @@ backend/.env
 .terraform/
 *.tfstate
 *.tfstate.backup
+# Terraform variables that shouldn't be public (e.g. the budget alert email)
+terraform.tfvars

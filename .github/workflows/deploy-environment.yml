@@ -1,0 +1,71 @@
+# Deploys one environment: the RSVP Lambda, then the site, so a new page never calls an
+# old API. Called by deploy.yml.
+#
+# dev builds the RSVP image for this commit. prod never builds: it deploys the image dev
+# built and tested, tagged release-<sha> so ECR's lifecycle rule keeps it.
+name: Deploy environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: dev or prod. The GitHub environment of the same name holds its variables and approval rule.
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    # Arm, matching the Lambda's architecture, so the image builds natively.
+    runs-on: ubuntu-24.04-arm
+    environment: ${{ inputs.environment }}
+    env:
+      COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the RSVP image
+        if: inputs.environment == 'dev'
+        run: |
+          image="${{ steps.ecr.outputs.registry }}/wedding/rsvp:$COMMIT"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+          if aws ecr describe-images --repository-name wedding/rsvp --image-ids "imageTag=$COMMIT" > /dev/null 2>&1; then
+            echo "$image already exists"
+          else
+            docker build --provenance=false --target runtime -t "$image" backend/rsvp
+            docker push "$image"
+          fi
+
+      - name: Tag dev's RSVP image as a release
+        if: inputs.environment == 'prod'
+        run: |
+          echo "IMAGE=${{ steps.ecr.outputs.registry }}/wedding/rsvp:release-$COMMIT" >> "$GITHUB_ENV"
+          if aws ecr describe-images --repository-name wedding/rsvp --image-ids "imageTag=release-$COMMIT" > /dev/null 2>&1; then
+            echo "release-$COMMIT already exists"
+            exit 0
+          fi
+          image() {
+            aws ecr batch-get-image --repository-name wedding/rsvp \
+              --image-ids "imageTag=$COMMIT" --query "images[0].$1" --output text
+          }
+          manifest=$(image imageManifest)
+          media_type=$(image imageManifestMediaType)
+          if [ "$manifest" = "None" ]; then
+            echo "::error::No wedding/rsvp:$COMMIT in ECR. Dev must build this commit first."
+            exit 1
+          fi
+          aws ecr put-image --repository-name wedding/rsvp --image-tag "release-$COMMIT" \
+            --image-manifest "$manifest" --image-manifest-media-type "$media_type" > /dev/null
+
+      - name: Deploy the RSVP Lambda
+        run: |
+          aws lambda update-function-code --function-name "${{ vars.RSVP_FUNCTION }}" --image-uri "$IMAGE" > /dev/null
+          aws lambda wait function-updated-v2 --function-name "${{ vars.RSVP_FUNCTION }}"
+
+      - run: aws s3 sync frontend/ "s3://${{ vars.SITE_BUCKET }}" --delete
+      - run: aws cloudfront create-invalidation --distribution-id "${{ vars.DISTRIBUTION_ID }}" --paths "/*"
