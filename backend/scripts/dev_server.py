@@ -8,6 +8,9 @@ its result back into an HTTP response. Uses only the standard library and runs o
 the host:
 
     python3 backend/scripts/dev_server.py     # serves http://localhost:8080
+
+Page addresses have no ".html", as on CloudFront (infra/.../clean_urls.js): /rsvp
+serves rsvp.html, and /rsvp.html redirects to /rsvp.
 """
 
 import json
@@ -32,9 +35,34 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/api/"):
-            self.proxy()
-        else:
-            super().do_GET()
+            return self.proxy()
+
+        path, _, query = self.path.partition("?")
+        query = f"?{query}" if query else ""
+        if len(path) > 1 and path.endswith("/"):
+            return self.redirect(path.rstrip("/") + query)
+        if path.endswith(".html"):
+            page = path.removesuffix(".html")
+            return self.redirect(("/" if page == "/index" else page) + query)
+        return super().do_GET()
+
+    def translate_path(self, path):
+        """
+        The file for an address: a page like /rsvp is the file rsvp.html.
+        """
+        path = path.partition("?")[0]
+        if path != "/" and "." not in path.rsplit("/", 1)[-1]:
+            path += ".html"
+        return super().translate_path(path)
+
+    def redirect(self, location):
+        """
+        Send a permanent redirect, as CloudFront does for .html addresses.
+        """
+        self.send_response(301)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def do_PUT(self):
         """
