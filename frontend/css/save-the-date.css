@@ -1,0 +1,144 @@
+:root {
+  --paper: #f7f3ec;
+  --card: rgba(251, 249, 244, 0.82);
+  --ink: #3e3a36;
+  --muted: #7a736b;
+  --sage: #9aab8a;
+  --sage-deep: #6c7d5e;
+  --lilac: #c4b3d8;
+  --lilac-deep: #9a84b5;
+  --serif: "Cormorant Garamond", Georgia, serif;
+  --sans: "Jost", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html { height: 100%; }
+
+body {
+  min-height: 100%;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  color: var(--ink);
+  font-family: var(--serif);
+  /* Soft washes of lilac and sage in opposite corners, like light leaks on film. */
+  background:
+    radial-gradient(60vmax 50vmax at 0% 0%, rgba(196, 179, 216, 0.85), transparent 70%),
+    radial-gradient(55vmax 45vmax at 100% 100%, rgba(154, 171, 138, 0.7), transparent 70%),
+    radial-gradient(40vmax 30vmax at 95% 5%, rgba(232, 214, 200, 0.6), transparent 70%),
+    var(--paper);
+  background-attachment: fixed;
+}
+
+/* Film grain over everything. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.25 0 0 0 0 0.22 0 0 0 0 0.2 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The card: a thin sage double rule, like printed stationery. */
+.card {
+  width: min(100%, 34rem);
+  padding: clamp(2.5rem, 8vw, 4.5rem) clamp(1.5rem, 6vw, 3.5rem);
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--sage);
+  outline: 1px solid var(--sage);
+  outline-offset: -9px;
+  animation: develop 1.6s ease-out both;
+}
+
+/* Fades in like a print developing. */
+@keyframes develop {
+  from { opacity: 0; filter: blur(3px) saturate(0.6); transform: translateY(6px); }
+  to { opacity: 1; filter: none; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; }
+}
+
+.eyebrow,
+.note {
+  font-family: var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  font-size: 0.72rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--sage-deep);
+}
+
+.names {
+  margin: 0.6rem 0 0.4rem;
+  font-weight: 300;
+  font-size: clamp(3.2rem, 13vw, 5rem);
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+}
+
+.amp {
+  display: block;
+  margin: -0.1em 0;
+  font-style: italic;
+  font-size: 0.8em;
+  color: var(--lilac-deep);
+}
+
+.sprig {
+  display: block;
+  width: 10rem;
+  margin: 1.2rem auto 1.5rem;
+}
+.sprig .stem { fill: none; stroke: var(--sage-deep); stroke-width: 1; stroke-linecap: round; }
+.sprig .leaf { fill: var(--sage); }
+.sprig .bud { fill: var(--lilac); }
+
+.date {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 1.9rem);
+  line-height: 1.3;
+}
+.weekday {
+  display: block;
+  font-style: italic;
+  font-size: 0.7em;
+  color: var(--muted);
+}
+
+.place {
+  margin: 0.5rem 0 0;
+  font-size: 1.2rem;
+  color: var(--muted);
+}
+
+.note {
+  margin: 2.4rem 0 0;
+  color: var(--muted);
+}
+
+/* Optional photo: an arch-topped frame, softened slightly towards a film look. */
+.photo {
+  width: min(100%, 15rem);
+  margin: 0 auto 2.2rem;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border-radius: 999px 999px 0.4rem 0.4rem;
+  background: linear-gradient(160deg, var(--lilac), var(--sage));
+}
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: saturate(0.88) contrast(0.95) sepia(0.06);
+}
