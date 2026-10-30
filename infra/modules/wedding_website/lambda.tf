@@ -14,13 +14,6 @@ resource "aws_lambda_function" "rsvp" {
   # the image.
   image_uri = "${data.aws_ecr_repository.rsvp.repository_url}:bootstrap"
 
-  # Empty, to take the function out of the VPC it used to run in. Removing this block
-  # wouldn't: Terraform treats a missing vpc_config as "leave it as it is".
-  vpc_config {
-    subnet_ids         = []
-    security_group_ids = []
-  }
-
   environment {
     variables = {
       INVITATIONS_TABLE = aws_dynamodb_table.invitations.name
