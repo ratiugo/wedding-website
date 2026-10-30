@@ -1,7 +1,9 @@
 # AWS's Lambda base image. It includes the Runtime Interface Emulator,
 # so the same image runs locally (docker compose) and in Lambda.
-# Its Python includes boto3, the only package the Lambda needs.
 FROM public.ecr.aws/lambda/python:3.13 AS runtime
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt --target ${LAMBDA_TASK_ROOT}
 
 COPY *.py ${LAMBDA_TASK_ROOT}/
 
