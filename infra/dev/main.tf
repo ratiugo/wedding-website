@@ -50,7 +50,7 @@ module "wedding_website" {
   environment = "dev"
   domains     = ["dev.tessandcolton.com"]
 
-  # The full site, with the save-the-date at /save-the-date.html.
+  # The full site, with the save-the-date at /save-the-date.
   home_page = "index.html"
   rsvp_open = true
 }
