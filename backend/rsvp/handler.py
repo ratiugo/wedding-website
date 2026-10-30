@@ -13,8 +13,6 @@ from invitation import BadRequest, Invitation
 GET = "GET /rsvp/{invite_code}"
 PUT = "PUT /rsvp/{invite_code}"
 
-# Off in prod until invitations go out, so nobody can look up or answer an invitation
-# before then, even by finding the RSVP page.
 RSVP_OPEN = os.environ.get("RSVP_OPEN") == "true"
 
 

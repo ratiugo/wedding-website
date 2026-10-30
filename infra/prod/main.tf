@@ -70,7 +70,3 @@ output "distribution_id" {
 output "rsvp_function" {
   value = module.wedding_website.rsvp_function
 }
-
-output "invitations_table" {
-  value = module.wedding_website.invitations_table
-}
