@@ -19,3 +19,8 @@ resource "aws_s3_bucket_policy" "site" {
     }]
   })
 }
+
+# The RSVP Lambda writes an event here for every response (rsvps/<invite code>/...).
+resource "aws_s3_bucket" "rsvps" {
+  bucket = "tessandcolton-${var.environment}-rsvps"
+}

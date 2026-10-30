@@ -1,14 +1,12 @@
 .DS_Store
 __pycache__/
 
-# Real guest list (personal info)
 backend/data/guests.csv
 .pytest_cache/
 
-# Local settings (sheet id, key path)
 backend/.env
 
-# Terraform's downloaded providers and local state (real state lives in S3)
 .terraform/
 *.tfstate
 *.tfstate.backup
+terraform.tfvars

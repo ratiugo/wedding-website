@@ -62,3 +62,7 @@ output "site_bucket" {
 output "distribution_id" {
   value = module.wedding_website.distribution_id
 }
+
+output "rsvp_function" {
+  value = module.wedding_website.rsvp_function
+}
