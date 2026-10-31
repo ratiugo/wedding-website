@@ -6,6 +6,11 @@ DOCKER ?= $(shell command -v docker || echo /Applications/Docker.app/Contents/Re
 export PATH := $(dir $(DOCKER)):$(PATH)
 COMPOSE = $(DOCKER) compose -f backend/docker-compose.yml
 
+# backend/.env's settings (the Google Sheet ids), if it exists.
+-include backend/.env
+# Which environment's Google Sheet `make sheet-setup` works on: dev, or ENV=prod.
+ENV ?= dev
+
 .PHONY: start stop sheet-setup test format lint
 
 # Start the RSVP Lambda and fake AWS, create the bucket and the example invitations,
@@ -20,9 +25,11 @@ start:
 stop:
 	$(COMPOSE) down
 
-# Create the Google Sheet's Guests and Summary tabs, if missing (GOOGLE_SHEET_ID in backend/.env).
+# Create the Guests and Summary tabs in dev's Google Sheet, if missing, or in prod's
+# with `make sheet-setup ENV=prod` (sheet ids in backend/.env).
 sheet-setup:
-	$(COMPOSE) run --rm --build sheet-setup
+	GOOGLE_SHEET_ID=$(if $(filter prod,$(ENV)),$(PROD_GOOGLE_SHEET_ID),$(DEV_GOOGLE_SHEET_ID)) \
+		$(COMPOSE) run --rm --build sheet-setup
 
 # Run the backend tests (the database, S3, SES and Google Sheets are all mocked).
 test:

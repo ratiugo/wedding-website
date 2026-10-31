@@ -20,7 +20,20 @@ resource "aws_s3_bucket_policy" "site" {
   })
 }
 
-# The RSVP Lambda writes an event here for every response (rsvps/<invite code>/...).
 resource "aws_s3_bucket" "rsvps" {
   bucket = "tessandcolton-${var.environment}-rsvps"
+}
+
+# Each new RSVP event runs the notifier.
+resource "aws_s3_bucket_notification" "rsvps" {
+  bucket = aws_s3_bucket.rsvps.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.notifier.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = "rsvps/"
+    filter_suffix       = ".json"
+  }
+
+  depends_on = [aws_lambda_permission.rsvps_bucket]
 }
