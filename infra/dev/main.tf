@@ -59,6 +59,7 @@ module "wedding_website" {
   home_page = "index.html"
   rsvp_open = true
 
+  sender_name      = "Wedding RSVPs (dev)"
   sender_email     = "rsvp-dev@tessandcolton.com"
   recipient_emails = var.recipient_emails
 }

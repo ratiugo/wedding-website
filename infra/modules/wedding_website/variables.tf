@@ -18,6 +18,11 @@ variable "rsvp_open" {
   type        = bool
 }
 
+variable "sender_name" {
+  description = "The name RSVP emails show as coming from, e.g. \"Wedding RSVPs\"."
+  type        = string
+}
+
 variable "sender_email" {
   description = "The address RSVP emails come from. Any address @tessandcolton.com works."
   type        = string
