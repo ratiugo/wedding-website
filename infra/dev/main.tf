@@ -16,6 +16,11 @@ terraform {
   }
 }
 
+variable "recipient_emails" {
+  description = "Who gets the RSVP emails. Set in terraform.tfvars, which is gitignored."
+  type        = list(string)
+}
+
 provider "aws" {
   region = "us-west-2"
 
@@ -53,6 +58,9 @@ module "wedding_website" {
   # The full site, with the save-the-date at /save-the-date.
   home_page = "index.html"
   rsvp_open = true
+
+  sender_email     = "rsvp-dev@tessandcolton.com"
+  recipient_emails = var.recipient_emails
 }
 
 output "deploy_role_arn" {
@@ -69,4 +77,8 @@ output "distribution_id" {
 
 output "rsvp_function" {
   value = module.wedding_website.rsvp_function
+}
+
+output "notifier_function" {
+  value = module.wedding_website.notifier_function
 }

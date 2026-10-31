@@ -17,3 +17,19 @@ variable "rsvp_open" {
   description = "Whether the RSVP API looks up and saves invitations. Off until invitations go out."
   type        = bool
 }
+
+variable "sender_email" {
+  description = "The address RSVP emails come from. Any address @tessandcolton.com works."
+  type        = string
+}
+
+variable "recipient_emails" {
+  description = "Who gets the RSVP emails. Each must be verified in SES (shared/ses.tf)."
+  type        = list(string)
+}
+
+variable "alarm_email" {
+  description = "Where to email when a Lambda fails. No alarms if null."
+  type        = string
+  default     = null
+}

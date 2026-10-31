@@ -25,7 +25,7 @@ Requires Docker.
 ```sh
 make start        # start the Lambda and fake AWS (S3, DynamoDB), then serve http://localhost:8080
 make stop         # stop the containers; the next start begins with the example guests again
-make sheet-setup  # create the Google Sheet's tabs (needs backend/.env; see .env.example)
+make sheet-setup  # create dev's Google Sheet tabs; ENV=prod for the real sheet (needs backend/.env)
 ```
 
 The local database starts with three example invitations: invite codes `RIVERA`,

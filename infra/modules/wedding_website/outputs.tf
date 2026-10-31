@@ -13,3 +13,7 @@ output "distribution_id" {
 output "rsvp_function" {
   value = aws_lambda_function.rsvp.function_name
 }
+
+output "notifier_function" {
+  value = aws_lambda_function.notifier.function_name
+}

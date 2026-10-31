@@ -16,6 +16,16 @@ terraform {
   }
 }
 
+variable "recipient_emails" {
+  description = "Who gets the RSVP emails. Set in terraform.tfvars, which is gitignored."
+  type        = list(string)
+}
+
+variable "alarm_email" {
+  description = "Where to email when a Lambda fails. Set in terraform.tfvars, which is gitignored."
+  type        = string
+}
+
 provider "aws" {
   region = "us-west-2"
 
@@ -53,6 +63,10 @@ module "wedding_website" {
   # The save-the-date until invitations go out; then index.html and rsvp_open = true.
   home_page = "save-the-date.html"
   rsvp_open = false
+
+  sender_email     = "rsvp@tessandcolton.com"
+  recipient_emails = var.recipient_emails
+  alarm_email      = var.alarm_email
 }
 
 output "deploy_role_arn" {
@@ -69,4 +83,8 @@ output "distribution_id" {
 
 output "rsvp_function" {
   value = module.wedding_website.rsvp_function
+}
+
+output "notifier_function" {
+  value = module.wedding_website.notifier_function
 }
