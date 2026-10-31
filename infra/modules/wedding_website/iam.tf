@@ -86,7 +86,7 @@ resource "aws_iam_role_policy" "deploy_lambdas" {
   })
 }
 
-# The RSVP Lambda's own role.
+# The RSVP Lambda's role.
 resource "aws_iam_role" "rsvp" {
   name = "wedding-${var.environment}-rsvp"
 
@@ -127,7 +127,7 @@ resource "aws_iam_role_policy" "rsvp" {
   })
 }
 
-# The notifier Lambda's own role.
+# The notifier Lambda's role.
 resource "aws_iam_role" "notifier" {
   name = "wedding-${var.environment}-notifier"
 

@@ -1,5 +1,5 @@
 # Emails alarm_email when something fails out of sight. Only created when alarm_email
-# is set (prod), since errors in dev are expected while experimenting.
+# is set (prod).
 
 resource "aws_sns_topic" "alarms" {
   count = var.alarm_email == null ? 0 : 1
@@ -7,7 +7,6 @@ resource "aws_sns_topic" "alarms" {
   name = "wedding-${var.environment}-alarms"
 }
 
-# Sends a confirmation email first; alarms arrive once it's confirmed.
 resource "aws_sns_topic_subscription" "alarms" {
   count = var.alarm_email == null ? 0 : 1
 
@@ -16,8 +15,7 @@ resource "aws_sns_topic_subscription" "alarms" {
   endpoint  = var.alarm_email
 }
 
-# A Lambda crashed: a guest saw "Something went wrong" (rsvp), or an RSVP didn't
-# reach the sheet or our inboxes (notifier).
+# A Lambda crashed
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   for_each = var.alarm_email == null ? {} : {
     rsvp     = aws_lambda_function.rsvp.function_name
@@ -38,8 +36,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   ok_actions          = [aws_sns_topic.alarms[0].arn]
 }
 
-# An RSVP was saved, but its event didn't reach S3, so the notifier never ran. The
-# RSVP Lambda logs this rather than failing, so it isn't counted as an error.
+# An RSVP was saved, but its event didn't reach S3, so the notifier never ran.
 resource "aws_cloudwatch_log_metric_filter" "rsvp_publish_failed" {
   count = var.alarm_email == null ? 0 : 1
 

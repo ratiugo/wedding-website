@@ -41,8 +41,7 @@ data "aws_ecr_repository" "notifier" {
   name = "wedding/notifier"
 }
 
-# Runs for each RSVP event the RSVP Lambda writes: updates the Google Sheet and
-# emails us.
+
 resource "aws_lambda_function" "notifier" {
   function_name = "wedding-${var.environment}-notifier"
   role          = aws_iam_role.notifier.arn
@@ -51,7 +50,6 @@ resource "aws_lambda_function" "notifier" {
   memory_size   = 512
   timeout       = 30
 
-  # As for the RSVP Lambda: only used when the function is first created.
   image_uri = "${data.aws_ecr_repository.notifier.repository_url}:bootstrap"
 
   environment {

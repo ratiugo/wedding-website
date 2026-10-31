@@ -1,5 +1,5 @@
-# Deploys one environment: the Lambdas (rsvp, notifier), then the site, so a new page
-# never calls an old API. Called by deploy.yml.
+# Deploys one environment: the Lambdas (rsvp, notifier), then the site.
+# Called by deploy.yml.
 #
 # dev builds the Lambda images for this commit. prod never builds: it deploys the images
 # dev built and tested, tagged release-<sha> so ECR's lifecycle rule keeps them.
@@ -15,12 +15,10 @@ on:
 
 jobs:
   deploy:
-    # Arm, matching the Lambdas' architecture, so the images build natively.
     runs-on: ubuntu-24.04-arm
     environment: ${{ inputs.environment }}
     env:
       COMMIT: ${{ github.sha }}
-      # The image tag each environment deploys.
       TAG: ${{ inputs.environment == 'prod' && format('release-{0}', github.sha) || github.sha }}
     steps:
       - uses: actions/checkout@v5
@@ -31,7 +29,6 @@ jobs:
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Tags can't be overwritten, so a re-run of this commit reuses its images.
       - name: Build and push the Lambda images
         if: inputs.environment == 'dev'
         run: |
@@ -45,7 +42,6 @@ jobs:
             fi
           done
 
-      # Checks both images exist before tagging either, so a missing one fails cleanly.
       - name: Tag dev's Lambda images as releases
         if: inputs.environment == 'prod'
         run: |

@@ -38,8 +38,6 @@ resource "aws_ecr_lifecycle_policy" "lambda" {
   })
 }
 
-# The RSVP repo was created before the notifier's, under these names. These tell
-# Terraform it's the same repo, so it isn't deleted and recreated.
 moved {
   from = aws_ecr_repository.rsvp
   to   = aws_ecr_repository.lambda["rsvp"]

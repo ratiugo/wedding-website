@@ -20,12 +20,11 @@ resource "aws_s3_bucket_policy" "site" {
   })
 }
 
-# The RSVP Lambda writes an event here for every response (rsvps/<invite code>/...).
 resource "aws_s3_bucket" "rsvps" {
   bucket = "tessandcolton-${var.environment}-rsvps"
 }
 
-# Each new RSVP event runs the notifier. S3 retries twice if it fails.
+# Each new RSVP event runs the notifier.
 resource "aws_s3_bucket_notification" "rsvps" {
   bucket = aws_s3_bucket.rsvps.id
 
