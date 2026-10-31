@@ -1,5 +1,5 @@
 """
-RSVP email tests: the subject, body and what's sent to SES.
+RSVP email tests: the subject, body, HTML and what's sent to SES.
 """
 
 from unittest.mock import MagicMock
@@ -128,7 +128,24 @@ def test_resubmitting_the_same_answers_sends_no_email(monkeypatch):
     emails.ses.send_email.assert_not_called()
 
 
-def test_send_emails_every_recipient_as_plain_text(monkeypatch):
+def test_html_shows_the_same_content_and_escapes_guest_text():
+    email = RsvpEmail(
+        {
+            "invitation": invitation([guest("Jamie <b>", True)], notes="Can't wait <3"),
+            "previous": None,
+        }
+    )
+
+    html = email.html()
+
+    assert "New RSVP" in html
+    assert "1 of 1 coming" in html
+    assert "Jamie &lt;b&gt;" in html
+    assert "Can&#x27;t wait &lt;3" in html
+    assert "<b>" not in html
+
+
+def test_send_emails_every_recipient_as_html_and_plain_text(monkeypatch):
     monkeypatch.setattr(emails, "ses", MagicMock())
     email = RsvpEmail(
         {"invitation": invitation([guest("Jamie", True)]), "previous": None}
@@ -137,12 +154,15 @@ def test_send_emails_every_recipient_as_plain_text(monkeypatch):
     email.send()
 
     emails.ses.send_email.assert_called_once_with(
-        FromEmailAddress="rsvp@example.com",
+        FromEmailAddress="Wedding RSVPs <rsvp@example.com>",
         Destination={"ToAddresses": ["colton@example.com", "tess@example.com"]},
         Content={
             "Simple": {
                 "Subject": {"Data": email.subject(), "Charset": "UTF-8"},
-                "Body": {"Text": {"Data": email.body(), "Charset": "UTF-8"}},
+                "Body": {
+                    "Text": {"Data": email.body(), "Charset": "UTF-8"},
+                    "Html": {"Data": email.html(), "Charset": "UTF-8"},
+                },
             }
         },
     )

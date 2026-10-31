@@ -166,11 +166,14 @@ resource "aws_iam_role_policy" "notifier" {
       },
       {
         # SES checks this against the sender's and (in the sandbox) each recipient's
-        # identity, so it's limited by the From address instead.
-        Effect    = "Allow"
-        Action    = "ses:SendEmail"
-        Resource  = "*"
-        Condition = { StringEquals = { "ses:FromAddress" = var.sender_email } }
+        # identity, so it's limited by the From address instead: sender_email, alone
+        # or after a display name ("Wedding RSVPs <rsvp@...>").
+        Effect   = "Allow"
+        Action   = "ses:SendEmail"
+        Resource = "*"
+        Condition = {
+          StringLike = { "ses:FromAddress" = [var.sender_email, "*<${var.sender_email}>"] }
+        }
       },
     ]
   })

@@ -56,6 +56,7 @@ resource "aws_lambda_function" "notifier" {
     variables = {
       RSVP_BUCKET            = aws_s3_bucket.rsvps.id
       GOOGLE_SHEET_PARAMETER = aws_ssm_parameter.google_sheet.name
+      SENDER_NAME            = var.sender_name
       SENDER_EMAIL           = var.sender_email
       RECIPIENT_EMAILS       = join(",", var.recipient_emails)
     }

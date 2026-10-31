@@ -69,6 +69,7 @@ services:
       target: test
     command: ["notifier/tests"]
     environment:
+      SENDER_NAME: Wedding RSVPs
       SENDER_EMAIL: rsvp@example.com
       RECIPIENT_EMAILS: colton@example.com,tess@example.com
       AWS_DEFAULT_REGION: us-east-1

@@ -64,6 +64,7 @@ module "wedding_website" {
   home_page = "save-the-date.html"
   rsvp_open = false
 
+  sender_name      = "Wedding RSVPs"
   sender_email     = "rsvp@tessandcolton.com"
   recipient_emails = var.recipient_emails
   alarm_email      = var.alarm_email
