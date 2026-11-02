@@ -42,13 +42,15 @@ def main():
 def invitation(example):
     """
     A full invitation item from an example, which only gives the invite code, label,
-    and each guest's name (plus plus_one or child when true).
+    email (if there is one), and each guest's name (plus plus_one or child when true).
     """
     return {
         "invite_code": example["invite_code"],
         "label": example["label"],
+        "email": example.get("email"),
         "notes": "",
         "responded_at": None,
+        "updates_opt_out": False,
         "guests": [
             {
                 "id": number,

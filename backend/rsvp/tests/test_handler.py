@@ -26,12 +26,12 @@ def invitations_fixture(monkeypatch):
 
 def call(method, body=None):
     """
-    Invoke the handler for invite code JAMIE2 the way API Gateway does, and return
+    Invoke the handler for invite code J8MN2VXC the way API Gateway does, and return
     (status, body).
     """
     event = {
         "routeKey": f"{method} /rsvp/{{invite_code}}",
-        "pathParameters": {"invite_code": "JAMIE2"},
+        "pathParameters": {"invite_code": "J8MN2VXC"},
         "body": body,
     }
     result = handler.lambda_handler(event, None)
@@ -40,7 +40,7 @@ def call(method, body=None):
 
 def test_get_returns_the_invitation(invitations):
     assert call("GET") == (200, {"label": "Jamie"})
-    invitations.get.assert_called_once_with("JAMIE2")
+    invitations.get.assert_called_once_with("J8MN2VXC")
 
 
 def test_unknown_invite_code_is_not_found(invitations):

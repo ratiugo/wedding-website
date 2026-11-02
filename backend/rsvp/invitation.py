@@ -44,17 +44,19 @@ class Invitation:
         self.notes = row["notes"]
         self.responded_at = row["responded_at"]
         self.guests = row["guests"]
+        self.updates_opt_out = row.get("updates_opt_out", False)
 
     @classmethod
     def get(cls, invite_code):
         """
         Return the invitation for an invite code, or None if there isn't one.
 
-        Spaces and case are ignored. Codes that can't be valid (anything but six
-        letters and digits) return None without a database lookup.
+        Spaces, hyphens and case are ignored, since cards print codes like H7KM-3QPX.
+        Codes that can't be valid (anything but eight letters and digits) return None
+        without a database lookup.
         """
-        invite_code = "".join(invite_code.split()).upper()
-        if len(invite_code) != 6 or not invite_code.isalnum():
+        invite_code = "".join(invite_code.split()).replace("-", "").upper()
+        if len(invite_code) != 8 or not invite_code.isalnum():
             return None
         row = database.get_invitation(invite_code)
         return cls(row) if row else None
@@ -69,7 +71,12 @@ class Invitation:
         """
         guests = self.validate_answers(body)
         saved = Invitation(
-            database.save_response(self.invite_code, guests, clean(body.get("notes")))
+            database.save_response(
+                self.invite_code,
+                guests,
+                clean(body.get("notes")),
+                body.get("updates_opt_out") is True,
+            )
         )
         try:
             saved.publish(previous=self if self.responded_at else None)
@@ -143,12 +150,14 @@ class Invitation:
         What a guest is allowed to see about their own invitation, as JSON data.
 
         Each guest contains the fields: id, name, plus_one, child, attending, dietary.
+        The invitation's email is left out, since anyone with the code can see this.
         """
         return {
             "invite_code": self.invite_code,
             "label": self.label,
             "notes": self.notes,
             "responded_at": self.responded_at,
+            "updates_opt_out": self.updates_opt_out,
             "guests": self.guests,
         }
 

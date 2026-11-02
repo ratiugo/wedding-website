@@ -74,6 +74,7 @@ lookupForm.addEventListener("submit", (e) => {
 function showForm() {
   document.getElementById("invite-label").textContent = invitation.label;
   document.getElementById("notes").value = invitation.notes;
+  document.getElementById("updates-opt-out").checked = invitation.updates_opt_out;
 
   const list = document.getElementById("guest-list");
   list.replaceChildren(...invitation.guests.map(guestRow));
@@ -134,10 +135,11 @@ rsvpForm.addEventListener("submit", async (e) => {
     return answer;
   });
   const notes = document.getElementById("notes").value;
+  const updates_opt_out = document.getElementById("updates-opt-out").checked;
 
   try {
     invitation = await busy(rsvpForm, "Sending…", () =>
-      api("PUT", invitation.invite_code, { guests, notes })
+      api("PUT", invitation.invite_code, { guests, notes, updates_opt_out })
     );
     showThanks();
   } catch (err) {

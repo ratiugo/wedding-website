@@ -10,7 +10,7 @@ import pytest
 from db import Database
 
 ITEM = {
-    "invite_code": "TEST01",
+    "invite_code": "TEST0001",
     "label": "Jamie",
     "notes": "",
     "responded_at": None,
@@ -48,27 +48,28 @@ def database_fixture(table):
 def test_get_invitation_returns_the_item_with_int_guest_ids(database, table):
     table.get_item.return_value = {"Item": ITEM}
 
-    invitation = database.get_invitation("TEST01")
+    invitation = database.get_invitation("TEST0001")
 
-    table.get_item.assert_called_once_with(Key={"invite_code": "TEST01"})
+    table.get_item.assert_called_once_with(Key={"invite_code": "TEST0001"})
     assert invitation["guests"][0]["id"] == 1
     assert isinstance(invitation["guests"][0]["id"], int)
 
 
 def test_get_unknown_invitation_returns_none(database, table):
     table.get_item.return_value = {}
-    assert database.get_invitation("ZZZZZZ") is None
+    assert database.get_invitation("ZZZZZZZZ") is None
 
 
 def test_save_response_updates_only_an_existing_invitation(database, table):
     table.update_item.return_value = {"Attributes": ITEM}
     guests = [{"id": 1, "attending": True}]
 
-    saved = database.save_response("TEST01", guests, "See you there")
+    saved = database.save_response("TEST0001", guests, "See you there", True)
 
     kwargs = table.update_item.call_args.kwargs
-    assert kwargs["Key"] == {"invite_code": "TEST01"}
+    assert kwargs["Key"] == {"invite_code": "TEST0001"}
     assert kwargs["ConditionExpression"] == "attribute_exists(invite_code)"
     assert kwargs["ExpressionAttributeValues"][":guests"] == guests
     assert kwargs["ExpressionAttributeValues"][":notes"] == "See you there"
+    assert kwargs["ExpressionAttributeValues"][":updates_opt_out"] is True
     assert saved["guests"][0]["id"] == 1
