@@ -6,12 +6,14 @@ DOCKER ?= $(shell command -v docker || echo /Applications/Docker.app/Contents/Re
 export PATH := $(dir $(DOCKER)):$(PATH)
 COMPOSE = $(DOCKER) compose -f backend/docker-compose.yml
 
-# backend/.env's settings (the Google Sheet ids), if it exists.
+# backend/.env's settings (the Google Sheet ids, and who updates are from), if it exists.
 -include backend/.env
-# Which environment's Google Sheet `make sheet-setup` works on: dev, or ENV=prod.
+# Which environment the sheet-setup, load-guests and send-update targets work on: dev,
+# or ENV=prod.
 ENV ?= dev
+SITE_URL = https://$(if $(filter prod,$(ENV)),tessandcolton.com,dev.tessandcolton.com)
 
-.PHONY: start stop sheet-setup load-guests test format lint
+.PHONY: start stop sheet-setup load-guests send-update test format lint
 
 # Start the RSVP Lambda and fake AWS, create the bucket and the example invitations,
 # then serve the site and API (Ctrl+C to stop).
@@ -37,9 +39,24 @@ sheet-setup:
 load-guests:
 	$(COMPOSE) run --rm --build \
 		-e INVITATIONS_TABLE=wedding-$(ENV)-invitations \
-		-e SITE_URL=https://$(if $(filter prod,$(ENV)),tessandcolton.com,dev.tessandcolton.com) \
+		-e SITE_URL=$(SITE_URL) \
 		load-guests /data/$(if $(filter prod,$(ENV)),guests.csv,guests.dev.csv) \
 		--codes /data/codes.$(ENV).csv
+
+# Email the update in FILE (a message file in updates/) to dev's guests, or prod's with
+# ENV=prod, after showing who it'd go to and asking. Sent from UPDATE_SENDER, with
+# replies to REPLY_TO (both in backend/.env).
+send-update:
+	$(if $(FILE),,$(error Set FILE to a message file, like FILE=updates/itinerary.txt))
+	mkdir -p updates
+	$(COMPOSE) run --rm --build \
+		-e INVITATIONS_TABLE=wedding-$(ENV)-invitations \
+		-e SITE_URL=$(SITE_URL) \
+		-e 'SENDER=$(UPDATE_SENDER)' \
+		-e REPLY_TO=$(REPLY_TO) \
+		send-update /updates/$(notdir $(FILE)) \
+		--sent /updates/$(basename $(notdir $(FILE))).sent.$(ENV).csv \
+		--preview /updates/$(basename $(notdir $(FILE))).preview.html
 
 # Run the backend tests (the database, S3, SES and Google Sheets are all mocked).
 test:
