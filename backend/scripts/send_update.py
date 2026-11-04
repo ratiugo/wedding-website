@@ -1,8 +1,10 @@
 """
-Email an update to guests: `make send-update FILE=updates/<name>.txt`.
+Send an update email to the invitations in DynamoDB.
 
-The message file has headers, a blank line, then the message, with blank lines
-between paragraphs:
+Usage: make send-update FILE=updates/<name>.txt [ENV=prod]
+
+A message file is headers, a blank line, then the body. Paragraphs are separated by
+blank lines.
 
     Subject: The weekend itinerary is up
     Audience: accepted
@@ -11,14 +13,18 @@ between paragraphs:
 
     We've added the full schedule for the weekend.
 
-Audience is accepted (someone on the invitation is coming), no-response (they
-haven't RSVP'd) or everyone. Heading and Link are optional, and a link starting
-with / is on the site. Invitations without an email, or that opted out, are skipped.
+Headers:
+    Subject   Required.
+    Audience  Required: accepted (at least one guest attending), no-response (no
+              RSVP yet) or everyone.
+    Heading   Optional title.
+    Link      Optional button, as "text | url". A url starting with / is relative to
+              SITE_URL.
 
-Like terraform apply, it shows who it would send to, saves a preview of the email,
-and asks first: yes sends, and test sends the preview to REPLY_TO. Each invitation
-it sends to is recorded in the --sent file, so running it again only sends to the
-rest.
+Invitations without an email, or with updates_opt_out set, are skipped. Before
+sending, the script lists the recipients, writes an HTML preview, and prompts:
+"yes" sends, and "test" sends one copy to REPLY_TO. Each send is appended to the
+--sent CSV, and those invitations are skipped on later runs.
 """
 
 import argparse
@@ -52,7 +58,7 @@ ses = boto3.client("sesv2")
 
 def main():
     """
-    Show who the update would go to, and send it if confirmed.
+    List the recipients, prompt for confirmation, and send.
     """
     parser = argparse.ArgumentParser(description="Email an update to guests.")
     parser.add_argument("message", help="the message file")
@@ -104,10 +110,10 @@ def main():
 
 def read_message(path):
     """
-    The message in a message file, and a list of its problems.
+    Parse a message file. Return (message, problems).
 
-    The message is {"subject", "audience", "paragraphs"}, plus "heading" and "link"
-    (a (text, url) pair) if it has them.
+    message has "subject", "audience" and "paragraphs", plus "heading" and "link"
+    (a (text, url) tuple) when given.
     """
     with open(path, encoding="utf-8") as file:
         headers, _, body = file.read().strip().partition("\n\n")
@@ -138,8 +144,8 @@ def read_message(path):
 
 def recipients(items, audience, already_sent):
     """
-    The invitations in the audience to send to, by name, and how many were skipped
-    for each reason.
+    Return (to_send, skipped): the audience's invitations to send to, sorted by
+    label, and the number skipped for each reason.
     """
     to_send = []
     skipped = {"without an email": 0, "opted out": 0, "already sent": 0}
@@ -159,7 +165,7 @@ def recipients(items, audience, already_sent):
 
 def sent(path):
     """
-    The codes of the invitations already sent to, from the --sent file.
+    Return the invite codes recorded in a sent CSV.
     """
     if not os.path.exists(path):
         return set()
@@ -169,8 +175,8 @@ def sent(path):
 
 def send_all(message, items, sent_path):
     """
-    Send the update to each invitation, recording each one as it's sent, and return
-    a line for each that failed.
+    Send the update to each invitation, appending each success to the sent CSV.
+    Return a description of each failure.
     """
     failed = []
     new_file = not os.path.exists(sent_path)
@@ -188,17 +194,17 @@ def send_all(message, items, sent_path):
                 [item["invite_code"], item["email"], datetime.now(timezone.utc)]
             )
             file.flush()
-            # SES's sandbox allows one email a second.
+            # Stay within the SES sandbox limit of one email per second.
             time.sleep(1)
     return failed
 
 
 def send(message, item, to=None):
     """
-    Email the update to an invitation, or a copy of theirs to another address.
+    Send the update for an invitation to its email, or to `to` as a test.
 
-    Replies and bounce notices go to REPLY_TO, and the List-Unsubscribe header gives
-    email apps an unsubscribe button that opens the opt-out page.
+    Replies and bounce notifications go to REPLY_TO. The List-Unsubscribe header
+    points to the invitation's opt-out page.
     """
     ses.send_email(
         FromEmailAddress=SENDER,
@@ -225,7 +231,7 @@ def send(message, item, to=None):
 
 def html(message, item):
     """
-    The update's HTML for an invitation, in the card style.
+    Render the update as HTML for an invitation.
     """
     greeting = f"Hi {card.ampersand(escape(item['label']))},"
     content = [card.paragraph(greeting, space=14)]
@@ -250,7 +256,7 @@ def html(message, item):
 
 def text(message, item):
     """
-    The update as plain text, for email apps that don't show HTML.
+    Render the update as plain text for an invitation.
     """
     lines = [f"Hi {item['label']},", *message["paragraphs"]]
     if "link" in message:
@@ -262,14 +268,14 @@ def text(message, item):
 
 def site_url(url):
     """
-    A link from the message, with the site's address added to one like /itinerary.
+    Resolve a message link, prefixing a site-relative path with SITE_URL.
     """
     return SITE_URL + url if url.startswith("/") else url
 
 
 def opt_out_url(item):
     """
-    The invitation's link to stop getting updates.
+    Return the URL of the invitation's opt-out page.
     """
     return f"{SITE_URL}/opt-out?invite_code={item['invite_code']}"
 

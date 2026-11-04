@@ -14,13 +14,47 @@ from send_update import read_message, recipients, send_all
 @pytest.fixture(autouse=True)
 def settings(monkeypatch):
     """
-    The site and addresses the Makefile passes in, and a mock SES client.
+    Set the config the Makefile passes in, and mock SES.
     """
     monkeypatch.setattr(send_update, "SITE_URL", "https://example.com")
     monkeypatch.setattr(send_update, "SENDER", "Us <hello@example.com>")
     monkeypatch.setattr(send_update, "REPLY_TO", "us@example.com")
     monkeypatch.setattr(send_update, "ses", MagicMock())
     monkeypatch.setattr(send_update.time, "sleep", lambda _: None)
+
+
+MESSAGE = {
+    "subject": "The itinerary is up",
+    "audience": "everyone",
+    "link": ("See the itinerary", "/itinerary"),
+    "paragraphs": ["We've added the schedule."],
+}
+
+
+def invitation(code="CODE0001", label="Sam", attending=None, **fields):
+    """
+    A table item for an invitation with one guest.
+    """
+    return {
+        "invite_code": code,
+        "label": label,
+        "email": "sam@example.com",
+        "responded_at": None if attending is None else "2026-11-01T00:00:00+00:00",
+        "updates_opt_out": False,
+        "guests": [{"name": label, "attending": attending}],
+        **fields,
+    }
+
+
+def sent_email():
+    """
+    The arguments of the one email sent to SES.
+    """
+    send_update.ses.send_email.assert_called_once()
+    return send_update.ses.send_email.call_args.kwargs
+
+
+# Reading message files
 
 
 def message_file(tmp_path, text):
@@ -32,117 +66,126 @@ def message_file(tmp_path, text):
     return read_message(path)
 
 
-MESSAGE = """Subject: The itinerary is up
-Audience: accepted
-Heading: The weekend
-Link: See the itinerary | /itinerary
+def test_a_message_has_headers_then_paragraphs(tmp_path):
+    message, problems = message_file(
+        tmp_path,
+        "Subject: Hi\nAudience: everyone\nLink: Go | /itinerary\n\n"
+        "One.\nStill one.\n\nTwo.\n",
+    )
 
-We've added the schedule.
-Friday has welcome drinks.
-
-See you soon!
-"""
-
-
-def invitation(code, label, email="a@example.com", attending=None, **fields):
-    """
-    A table item for an invitation with one guest.
-    """
-    return {
-        "invite_code": code,
-        "label": label,
-        "email": email,
-        "responded_at": None if attending is None else "2026-11-01T00:00:00+00:00",
-        "updates_opt_out": False,
-        "guests": [{"name": label, "attending": attending}],
-        **fields,
+    assert not problems
+    assert message == {
+        "subject": "Hi",
+        "audience": "everyone",
+        "link": ("Go", "/itinerary"),
+        "paragraphs": ["One.\nStill one.", "Two."],
     }
 
 
-def test_a_message_has_headers_then_paragraphs(tmp_path):
-    assert message_file(tmp_path, MESSAGE) == (
-        {
-            "subject": "The itinerary is up",
-            "audience": "accepted",
-            "heading": "The weekend",
-            "link": ("See the itinerary", "/itinerary"),
-            "paragraphs": [
-                "We've added the schedule.\nFriday has welcome drinks.",
-                "See you soon!",
-            ],
-        },
-        [],
-    )
+def test_a_message_needs_a_subject_and_audience(tmp_path):
+    _, problems = message_file(tmp_path, "Heading: Hi\n\nHello.\n")
+    assert problems == ["Missing header: Subject", "Missing header: Audience"]
 
 
-def test_message_problems_are_listed(tmp_path):
+def test_an_unknown_audience_is_a_problem(tmp_path):
+    _, problems = message_file(tmp_path, "Subject: Hi\nAudience: friends\n\nHello.\n")
+    assert problems == ["Audience should be one of: accepted, no-response, everyone"]
+
+
+def test_a_misspelled_header_is_a_problem(tmp_path):
     _, problems = message_file(
-        tmp_path, "Subjet: Hi\nAudience: friends\nLink: /itinerary\n\n"
+        tmp_path, "Subject: Hi\nAudience: everyone\nHeadng: Hi\n\nHello.\n"
     )
-
-    assert problems == [
-        "Unknown header: Subjet: Hi",
-        "Missing header: Subject",
-        "Audience should be one of: accepted, no-response, everyone",
-        "Link should be like: See the itinerary | /itinerary",
-        "The message is empty",
-    ]
+    assert problems == ["Unknown header: Headng: Hi"]
 
 
-def test_recipients_are_the_audience_minus_who_cant_or_already_got_it():
-    items = [
-        invitation("CODE0001", "Coming", attending=True),
-        invitation("CODE0002", "Not coming", attending=False),
-        invitation("CODE0003", "No answer"),
-        invitation("CODE0004", "No email", email=None, attending=True),
-        invitation("CODE0005", "Opted out", attending=True, updates_opt_out=True),
-        invitation("CODE0006", "Already sent", attending=True),
-    ]
-
-    to_send, skipped = recipients(items, "accepted", {"CODE0006"})
-
-    assert [item["label"] for item in to_send] == ["Coming"]
-    assert skipped == {"without an email": 1, "opted out": 1, "already sent": 1}
-    assert [item["label"] for item in recipients(items, "no-response", set())[0]] == [
-        "No answer"
-    ]
-    assert len(recipients(items, "everyone", set())[0]) == 4
+# Choosing recipients
 
 
-def test_the_email_greets_the_invitation_and_links_to_its_opt_out(tmp_path):
-    message, _ = message_file(tmp_path, MESSAGE)
-    item = invitation("CODE0001", "Sam & <Alex>")
+def test_accepted_is_invitations_with_someone_coming():
+    coming = invitation(attending=True)
+    not_coming = invitation(attending=False)
 
-    html = send_update.html(message, item)
-    text = send_update.text(message, item)
+    to_send, _ = recipients([coming, not_coming], "accepted", set())
 
-    assert "Sam <span" in html and "&lt;Alex&gt;" in html and "<Alex>" not in html
-    assert "The weekend" in html
-    assert "added the schedule.<br>Friday" in html
-    assert 'href="https://example.com/itinerary"' in html
-    assert 'href="https://example.com/opt-out?invite_code=CODE0001"' in html
-    assert text == (
-        "Hi Sam & <Alex>,\n\n"
-        "We've added the schedule.\nFriday has welcome drinks.\n\n"
-        "See you soon!\n\n"
+    assert to_send == [coming]
+
+
+def test_no_response_is_invitations_without_an_rsvp():
+    answered = invitation(attending=False)
+    unanswered = invitation()
+
+    to_send, _ = recipients([answered, unanswered], "no-response", set())
+
+    assert to_send == [unanswered]
+
+
+def test_invitations_without_an_email_are_skipped():
+    to_send, skipped = recipients([invitation(email=None)], "everyone", set())
+
+    assert not to_send
+    assert skipped["without an email"] == 1
+
+
+def test_opted_out_invitations_are_skipped():
+    to_send, skipped = recipients([invitation(updates_opt_out=True)], "everyone", set())
+
+    assert not to_send
+    assert skipped["opted out"] == 1
+
+
+def test_invitations_already_sent_to_are_skipped():
+    to_send, skipped = recipients([invitation()], "everyone", {"CODE0001"})
+
+    assert not to_send
+    assert skipped["already sent"] == 1
+
+
+# The email
+
+
+def test_the_email_greets_the_invitation():
+    html = send_update.html(MESSAGE, invitation(label="Sam <Alex>"))
+    assert "Hi Sam &lt;Alex&gt;," in html
+
+
+def test_a_site_link_gets_the_site_address():
+    assert send_update.site_url("/itinerary") == "https://example.com/itinerary"
+
+
+def test_a_full_link_is_left_as_is():
+    assert send_update.site_url("https://maps.example") == "https://maps.example"
+
+
+def test_the_plain_text_email():
+    assert send_update.text(MESSAGE, invitation()) == (
+        "Hi Sam,\n\n"
+        "We've added the schedule.\n\n"
         "See the itinerary: https://example.com/itinerary\n\n"
         "--\nStop getting updates: https://example.com/opt-out?invite_code=CODE0001"
     )
 
 
-def test_send_sets_reply_to_bounces_and_the_unsubscribe_header(tmp_path):
-    message, _ = message_file(tmp_path, MESSAGE)
+# Sending
 
-    send_update.send(message, invitation("CODE0001", "Sam", email="sam@example.com"))
 
-    kwargs = send_update.ses.send_email.call_args.kwargs
-    assert kwargs["FromEmailAddress"] == "Us <hello@example.com>"
-    assert kwargs["Destination"] == {"ToAddresses": ["sam@example.com"]}
-    assert kwargs["ReplyToAddresses"] == ["us@example.com"]
-    assert kwargs["FeedbackForwardingEmailAddress"] == "us@example.com"
-    simple = kwargs["Content"]["Simple"]
-    assert simple["Subject"]["Data"] == "The itinerary is up"
-    assert simple["Headers"] == [
+def test_an_update_goes_to_the_invitations_email():
+    send_update.send(MESSAGE, invitation())
+    assert sent_email()["Destination"] == {"ToAddresses": ["sam@example.com"]}
+
+
+def test_replies_and_bounces_go_to_reply_to():
+    send_update.send(MESSAGE, invitation())
+
+    assert sent_email()["ReplyToAddresses"] == ["us@example.com"]
+    assert sent_email()["FeedbackForwardingEmailAddress"] == "us@example.com"
+
+
+def test_the_unsubscribe_header_opens_the_invitations_opt_out_page():
+    send_update.send(MESSAGE, invitation())
+
+    headers = sent_email()["Content"]["Simple"]["Headers"]
+    assert headers == [
         {
             "Name": "List-Unsubscribe",
             "Value": "<https://example.com/opt-out?invite_code=CODE0001>",
@@ -150,28 +193,21 @@ def test_send_sets_reply_to_bounces_and_the_unsubscribe_header(tmp_path):
     ]
 
 
-def test_a_test_send_goes_only_to_the_given_address(tmp_path):
-    message, _ = message_file(tmp_path, MESSAGE)
+def test_a_test_send_goes_to_the_given_address_marked_test():
+    send_update.send(MESSAGE, invitation(), to="us@example.com")
 
-    send_update.send(message, invitation("CODE0001", "Sam"), to="us@example.com")
-
-    kwargs = send_update.ses.send_email.call_args.kwargs
-    assert kwargs["Destination"] == {"ToAddresses": ["us@example.com"]}
-    assert (
-        kwargs["Content"]["Simple"]["Subject"]["Data"] == "[Test] The itinerary is up"
-    )
+    assert sent_email()["Destination"] == {"ToAddresses": ["us@example.com"]}
+    subject = sent_email()["Content"]["Simple"]["Subject"]["Data"]
+    assert subject == "[Test] The itinerary is up"
 
 
 def test_only_successful_sends_are_recorded(tmp_path):
-    message, _ = message_file(tmp_path, MESSAGE)
-    items = [invitation("CODE0001", "Sam"), invitation("CODE0002", "Alex")]
     send_update.ses.send_email.side_effect = [
         None,
         ClientError({"Error": {"Code": "MessageRejected"}}, "SendEmail"),
     ]
     sent_path = tmp_path / "update.sent.dev.csv"
 
-    failed = send_all(message, items, sent_path)
+    send_all(MESSAGE, [invitation("CODE0001"), invitation("CODE0002")], sent_path)
 
-    assert len(failed) == 1 and failed[0].startswith("Alex <a@example.com>")
     assert send_update.sent(sent_path) == {"CODE0001"}

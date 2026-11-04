@@ -58,8 +58,7 @@ services:
       # Writable, so an expired AWS sign-in can refresh.
       - ~/.aws:/root/.aws
 
-  # `make send-update`: email an update to guests (scripts/send_update.py), signed in
-  # like load-guests.
+  # `make send-update`: scripts/send_update.py against real AWS, using your AWS profile.
   send-update:
     profiles: [tools]
     build:
@@ -70,12 +69,12 @@ services:
       AWS_PROFILE: ${AWS_PROFILE:-}
       AWS_DEFAULT_REGION: us-west-2
       HOME: /root
-      # For the email design, notifier/card.py.
+      # For notifier/card.py.
       PYTHONPATH: /notifier
     volumes:
       - ./scripts:/scripts:ro
       - ./notifier:/notifier:ro
-      # Writable, for the preview and the record of who it was sent to.
+      # Writable for previews and sent records.
       - ../updates:/updates
       - ~/.aws:/root/.aws
 

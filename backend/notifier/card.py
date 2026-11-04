@@ -1,10 +1,9 @@
 """
-The HTML for our emails, styled like the save-the-date card: a cream card with a
-double sage border on a lilac background.
+HTML building blocks for emails, styled to match the save-the-date card.
 
-Styles are inline, because email apps ignore most stylesheets. Gmail doesn't load
-web fonts, so it shows Georgia and Arial instead of Cormorant Garamond and Jost.
-Every argument is HTML, so text from guests must be escaped first.
+Styles are inline since most email clients strip <style> blocks. Clients that don't
+load web fonts (e.g. Gmail) fall back to Georgia and Arial. All arguments are HTML,
+so callers must escape untrusted text.
 """
 
 SERIF = "'Cormorant Garamond', Georgia, serif"
@@ -43,8 +42,8 @@ PAGE = """<!doctype html>
 
 def card(content, eyebrow="", title="", subtitle="", footer=""):
     """
-    A whole email: an optional small-caps eyebrow, title and italic subtitle, a rule
-    under them, then the content and an optional small footer.
+    Return a complete HTML email. The eyebrow, title, subtitle and footer are
+    optional, and a divider follows the title or subtitle.
     """
     parts = []
     if eyebrow:
@@ -79,7 +78,7 @@ def card(content, eyebrow="", title="", subtitle="", footer=""):
 
 def heading(text):
     """
-    A small-caps heading for a section, like "Coming (2)".
+    Return a small-caps section heading.
     """
     return (
         f'<p style="margin: 24px 0 8px; font-family: {SANS}; font-size: 11px;'
@@ -90,8 +89,7 @@ def heading(text):
 
 def paragraph(text, space=4):
     """
-    A paragraph of body text, with space pixels above and below: a little for lines
-    in a list, more for paragraphs of a message.
+    Return a body paragraph with `space` pixels of vertical margin.
     """
     return (
         f'<p style="margin: {space}px 0; font-size: 18px; line-height: 1.5;">{text}</p>'
@@ -100,7 +98,7 @@ def paragraph(text, space=4):
 
 def quote(text):
     """
-    Text in lilac italics between curly quotes, like a guest's note.
+    Return text as a lilac italic quotation.
     """
     return (
         '<p style="margin: 8px 0 0; font-size: 20px; font-style: italic;'
@@ -110,7 +108,7 @@ def quote(text):
 
 def button(text, url):
     """
-    A rounded sage link styled as a button.
+    Return a link styled as a button.
     """
     return (
         '<p style="margin: 28px 0 0;">'
@@ -123,8 +121,7 @@ def button(text, url):
 
 def ampersand(text):
     """
-    Text with its ampersands in lilac italics, as on the save-the-date. The text
-    must already be escaped, so its ampersands are &amp;.
+    Style each ampersand in already-escaped text (as &amp;) in lilac italics.
     """
     return text.replace(
         "&amp;", f'<span style="font-style: italic; color: {LILAC_DEEP};">&amp;</span>'
