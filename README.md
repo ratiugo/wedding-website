@@ -13,8 +13,8 @@ frontend/              The site: index.html, rsvp.html, css/, js/
 backend/rsvp/          RSVP Lambda: handler.py (API routes), invitation.py, db.py
 backend/notifier/      Notifier Lambda: handler.py, emails.py, sheets.py
 backend/scripts/       dev_server.py (local site + API), local_aws.py (local bucket, table, examples),
-                       setup_sheet.py (Google Sheet tabs)
-backend/data/          invitations.example.json (local example guests), guests.example.csv
+                       setup_sheet.py (Google Sheet tabs), load_guests.py (guest list -> invitations)
+backend/data/          guests.example.csv (local example guests, and the guest list format)
 backend/docker-compose.yml   Local services, plus the test images
 ```
 
@@ -26,10 +26,13 @@ Requires Docker.
 make start        # start the Lambda and fake AWS (S3, DynamoDB), then serve http://localhost:8080
 make stop         # stop the containers; the next start begins with the example guests again
 make sheet-setup  # create dev's Google Sheet tabs; ENV=prod for the real sheet (needs backend/.env)
+make load-guests  # add new invitations from backend/data/guests.dev.csv to dev, after asking;
+                  # ENV=prod for guests.csv (signs in with your AWS profile)
 ```
 
-The local database starts with three example invitations: invite codes `R7KM3QPX`,
-`S4HD9TWN` and `J8MN2VXC`.
+The local database starts with the example invitations in
+`backend/data/guests.example.csv`. Their codes are random, so `make start` prints each
+one's RSVP link.
 
 ## Tests
 

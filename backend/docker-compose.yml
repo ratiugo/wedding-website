@@ -39,6 +39,25 @@ services:
       # /dev/null when backend/.env doesn't set the key's path (as in CI), so the file still loads.
       - ${GOOGLE_KEY_PATH:-/dev/null}:/secrets/google-key.json:ro
 
+  # `make load-guests`: load a guest list into dev's or prod's invitations table
+  # (scripts/load_guests.py), signed in with your AWS profile from ~/.aws.
+  load-guests:
+    profiles: [tools]
+    build:
+      context: ./rsvp
+      target: runtime
+    entrypoint: ["python", "/scripts/load_guests.py"]
+    environment:
+      AWS_PROFILE: ${AWS_PROFILE:-}
+      AWS_DEFAULT_REGION: us-west-2
+      HOME: /root
+    volumes:
+      - ./scripts:/scripts:ro
+      # Writable, for the codes file.
+      - ./data:/data
+      # Writable, so an expired AWS sign-in can refresh.
+      - ~/.aws:/root/.aws
+
   # Fake AWS (moto server) for S3 and DynamoDB, in memory: `make start` recreates the
   # bucket and table each time this container is created.
   aws:
@@ -54,11 +73,12 @@ services:
     build:
       context: ./rsvp
       target: test
-    command: ["rsvp/tests"]
+    command: ["rsvp/tests", "scripts/tests"]
     environment:
       # The tests mock AWS; boto3 still needs a region and table name to set up.
       AWS_DEFAULT_REGION: us-east-1
       INVITATIONS_TABLE: wedding-invitations
+      PYTHONPATH: /backend/rsvp:/backend/scripts:/var/task
     volumes:
       - ./:/backend
 
