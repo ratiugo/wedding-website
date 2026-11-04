@@ -59,6 +59,17 @@ class Database:
         )["Attributes"]
         return with_int_ids(item)
 
+    def opt_out(self, invite_code):
+        """
+        Mark an existing invitation as opted out of update emails.
+        """
+        self.table.update_item(
+            Key={"invite_code": invite_code},
+            UpdateExpression="SET updates_opt_out = :true",
+            ConditionExpression="attribute_exists(invite_code)",
+            ExpressionAttributeValues={":true": True},
+        )
+
 
 def with_int_ids(item):
     """

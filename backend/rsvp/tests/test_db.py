@@ -73,3 +73,14 @@ def test_save_response_updates_only_an_existing_invitation(database, table):
     assert kwargs["ExpressionAttributeValues"][":notes"] == "See you there"
     assert kwargs["ExpressionAttributeValues"][":updates_opt_out"] is True
     assert saved["guests"][0]["id"] == 1
+
+
+def test_opt_out_sets_only_the_opt_out_on_an_existing_invitation(database, table):
+    database.opt_out("TEST0001")
+
+    table.update_item.assert_called_once_with(
+        Key={"invite_code": "TEST0001"},
+        UpdateExpression="SET updates_opt_out = :true",
+        ConditionExpression="attribute_exists(invite_code)",
+        ExpressionAttributeValues={":true": True},
+    )

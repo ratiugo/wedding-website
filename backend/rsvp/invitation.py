@@ -10,6 +10,7 @@ us and update the wedding planning spreadsheet.
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 
 import boto3
@@ -51,12 +52,13 @@ class Invitation:
         """
         Return the invitation for an invite code, or None if there isn't one.
 
-        Spaces, hyphens and case are ignored, since cards print codes like H7KM-3QPX.
-        Codes that can't be valid (anything but eight letters and digits) return None
-        without a database lookup.
+        Case and anything but letters and digits are ignored, since cards print
+        codes like H7KM-3QPX and links can pick up punctuation when pasted (a
+        trailing comma or period). Codes that can't be valid (anything but eight
+        letters and digits) return None without a database lookup.
         """
-        invite_code = "".join(invite_code.split()).replace("-", "").upper()
-        if len(invite_code) != 8 or not invite_code.isalnum():
+        invite_code = re.sub(r"[^A-Z0-9]", "", invite_code.upper())
+        if len(invite_code) != 8:
             return None
         row = database.get_invitation(invite_code)
         return cls(row) if row else None
@@ -83,6 +85,14 @@ class Invitation:
         except (BotoCoreError, ClientError):
             logger.exception("Failed to publish RSVP event for %s", self.invite_code)
         return saved
+
+    def opt_out(self):
+        """
+        Stop update emails for this invitation. Only the opt-out changes, not the
+        answers or when they responded, so it doesn't count as an RSVP.
+        """
+        database.opt_out(self.invite_code)
+        self.updates_opt_out = True
 
     def validate_answers(self, body):
         """

@@ -70,3 +70,30 @@ def test_nothing_is_looked_up_while_rsvps_are_closed(invitations, monkeypatch):
 
     assert call("GET") == (403, {"error": "RSVPs aren't open yet."})
     invitations.get.assert_not_called()
+
+
+def opt_out():
+    """
+    Invoke the opt-out route for invite code J8MN2VXC, and return (status, body).
+    """
+    event = {
+        "routeKey": "POST /rsvp/{invite_code}/opt-out",
+        "pathParameters": {"invite_code": "J8MN2VXC"},
+        "body": None,
+    }
+    result = handler.lambda_handler(event, None)
+    return result["statusCode"], json.loads(result["body"])
+
+
+def test_opt_out_works_even_while_rsvps_are_closed(invitations, monkeypatch):
+    monkeypatch.setattr(handler, "RSVP_OPEN", False)
+
+    assert opt_out() == (200, {"updates_opt_out": True})
+    invitations.get.assert_called_once_with("J8MN2VXC")
+    invitations.get.return_value.opt_out.assert_called_once_with()
+    invitations.get.return_value.respond.assert_not_called()
+
+
+def test_opt_out_of_an_unknown_invite_code_is_not_found(invitations):
+    invitations.get.return_value = None
+    assert opt_out() == (404, {"error": "We couldn't find that invitation code."})
