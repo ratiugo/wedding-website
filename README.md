@@ -28,8 +28,8 @@ make stop         # stop the containers; the next start begins with the example 
 make sheet-setup  # create dev's Google Sheet tabs; ENV=prod for the real sheet (needs backend/.env)
 ```
 
-The local database starts with three example invitations: invite codes `RIVERA`,
-`SHAHPD` and `JAMIE2`.
+The local database starts with three example invitations: invite codes `R7KM3QPX`,
+`S4HD9TWN` and `J8MN2VXC`.
 
 ## Tests
 

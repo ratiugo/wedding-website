@@ -20,7 +20,15 @@
     <!-- Step 1: find the invitation (skipped when the link has ?invite_code=...) -->
     <form id="lookup-form">
       <label for="invite-code">Enter the code from your invitation</label>
-      <input id="invite-code" name="invite_code" autocomplete="off" autocapitalize="characters" maxlength="10" required>
+      <!-- One real input, invisible over eight boxes that show what's typed in it -->
+      <div class="code-entry">
+        <input id="invite-code" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+        <div class="code-slots" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+          <i class="code-dash"></i>
+          <span></span><span></span><span></span><span></span>
+        </div>
+      </div>
       <p class="error" id="lookup-error" hidden></p>
       <button type="submit" class="button">Find my invitation</button>
     </form>
@@ -32,6 +40,10 @@
 
       <label for="notes">Anything else we should know? <span class="optional">(optional)</span></label>
       <textarea id="notes" rows="3" maxlength="500"></textarea>
+
+      <div class="choices">
+        <label><input type="checkbox" id="updates-opt-out"> Opt out of email updates about the wedding</label>
+      </div>
 
       <p class="error" id="rsvp-error" hidden></p>
       <button type="submit" class="button">Send RSVP</button>

@@ -64,9 +64,36 @@ async function loadInvitation(inviteCode) {
   else showForm();
 }
 
+// The code is typed into one invisible input and shown in eight boxes, split four
+// and four as printed on the card (H7KM-3QPX). Pasting a code with a hyphen or
+// spaces works too: anything but letters and digits is dropped.
+const codeInput = document.getElementById("invite-code");
+const codeSlots = [...document.querySelectorAll(".code-slots span")];
+
+function showCode() {
+  const code = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  codeInput.value = code;
+  // Highlight the box the next character goes in (the last one once it's full).
+  const next = document.activeElement === codeInput ? Math.min(code.length, 7) : -1;
+  codeSlots.forEach((slot, i) => {
+    slot.textContent = code[i] || "";
+    slot.classList.toggle("active", i === next);
+  });
+}
+
+// Keep the cursor at the end, since the boxes only show adding and deleting there.
+function cursorToEnd() {
+  codeInput.setSelectionRange(codeInput.value.length, codeInput.value.length);
+}
+
+codeInput.addEventListener("input", showCode);
+codeInput.addEventListener("focus", () => { cursorToEnd(); showCode(); });
+codeInput.addEventListener("click", cursorToEnd);
+codeInput.addEventListener("blur", showCode);
+
 lookupForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  loadInvitation(document.getElementById("invite-code").value.trim());
+  loadInvitation(codeInput.value);
 });
 
 // --- Step 2: the form ---
@@ -74,6 +101,7 @@ lookupForm.addEventListener("submit", (e) => {
 function showForm() {
   document.getElementById("invite-label").textContent = invitation.label;
   document.getElementById("notes").value = invitation.notes;
+  document.getElementById("updates-opt-out").checked = invitation.updates_opt_out;
 
   const list = document.getElementById("guest-list");
   list.replaceChildren(...invitation.guests.map(guestRow));
@@ -134,10 +162,11 @@ rsvpForm.addEventListener("submit", async (e) => {
     return answer;
   });
   const notes = document.getElementById("notes").value;
+  const updates_opt_out = document.getElementById("updates-opt-out").checked;
 
   try {
     invitation = await busy(rsvpForm, "Sending…", () =>
-      api("PUT", invitation.invite_code, { guests, notes })
+      api("PUT", invitation.invite_code, { guests, notes, updates_opt_out })
     );
     showThanks();
   } catch (err) {
@@ -162,6 +191,7 @@ document.getElementById("edit-button").addEventListener("click", showForm);
 
 const inviteCodeFromLink = new URLSearchParams(location.search).get("invite_code");
 if (inviteCodeFromLink) {
-  document.getElementById("invite-code").value = inviteCodeFromLink;
+  codeInput.value = inviteCodeFromLink;
+  showCode();
   loadInvitation(inviteCodeFromLink);
 }

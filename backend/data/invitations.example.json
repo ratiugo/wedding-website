@@ -1,7 +1,8 @@
 [
   {
-    "invite_code": "RIVERA",
+    "invite_code": "R7KM3QPX",
     "label": "Morgan, Sam & Ellie",
+    "email": "morgan@example.com",
     "guests": [
       { "name": "Morgan Rivera" },
       { "name": "Sam Rivera" },
@@ -9,12 +10,13 @@
     ]
   },
   {
-    "invite_code": "SHAHPD",
+    "invite_code": "S4HD9TWN",
     "label": "Priya & Dev",
+    "email": "priya@example.com",
     "guests": [{ "name": "Priya Shah" }, { "name": "Dev Shah" }]
   },
   {
-    "invite_code": "JAMIE2",
+    "invite_code": "J8MN2VXC",
     "label": "Jamie",
     "guests": [{ "name": "Jamie Lee" }, { "name": "Plus-one", "plus_one": true }]
   }

@@ -2,7 +2,7 @@
 Local dev server: serves the website in frontend/ and forwards /api/* to the local
 Lambda.
 
-Does API Gateway's job locally: turns an HTTP request like `PUT /api/rsvp/GU4G9H`
+Does API Gateway's job locally: turns an HTTP request like `PUT /api/rsvp/R7KM3QPX`
 into a payload 2.0 event, invokes the Lambda running in docker compose, and turns
 its result back into an HTTP response. Uses only the standard library and runs on
 the host:
@@ -54,6 +54,13 @@ class Handler(SimpleHTTPRequestHandler):
         if path != "/" and "." not in path.rsplit("/", 1)[-1]:
             path += ".html"
         return super().translate_path(path)
+
+    def end_headers(self):
+        """
+        Ask browsers to check for a newer file each time, as the deployed site does.
+        """
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
 
     def redirect(self, location):
         """

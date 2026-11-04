@@ -75,5 +75,7 @@ jobs:
           deploy "${{ vars.RSVP_FUNCTION }}" rsvp
           deploy "${{ vars.NOTIFIER_FUNCTION }}" notifier
 
-      - run: aws s3 sync frontend/ "s3://${{ vars.SITE_BUCKET }}" --delete
+      # no-cache makes browsers check for a newer file on each visit (re-downloading
+      # only what changed), so a deploy never pairs new HTML with old CSS or JS.
+      - run: aws s3 sync frontend/ "s3://${{ vars.SITE_BUCKET }}" --delete --cache-control no-cache
       - run: aws cloudfront create-invalidation --distribution-id "${{ vars.DISTRIBUTION_ID }}" --paths "/*"

@@ -3,10 +3,12 @@ DynamoDB access. Each invitation is one item, keyed by its invite code, with its
 inside it:
 
     {
-        "invite_code": "RIVERA",
+        "invite_code": "R7KM3QPX",
         "label": "Morgan, Sam & Ellie",
+        "email": "morgan@example.com",
         "notes": "",
         "responded_at": None,
+        "updates_opt_out": False,
         "guests": [
             {"id": 1, "name": "Morgan Rivera", "plus_one": False, "child": False,
              "attending": None, "dietary": ""},
@@ -35,21 +37,23 @@ class Database:
         item = self.table.get_item(Key={"invite_code": invite_code}).get("Item")
         return with_int_ids(item) if item else None
 
-    def save_response(self, invite_code, guests, notes):
+    def save_response(self, invite_code, guests, notes, updates_opt_out):
         """
-        Replace the invitation's guests and notes, mark it as responded now, and
-        return the saved invitation.
+        Replace the invitation's guests, notes and opt-out, mark it as responded now,
+        and return the saved invitation.
         """
         item = self.table.update_item(
             Key={"invite_code": invite_code},
             UpdateExpression=(
-                "SET guests = :guests, notes = :notes, responded_at = :now"
+                "SET guests = :guests, notes = :notes, responded_at = :now,"
+                " updates_opt_out = :updates_opt_out"
             ),
             ConditionExpression="attribute_exists(invite_code)",
             ExpressionAttributeValues={
                 ":guests": guests,
                 ":notes": notes,
                 ":now": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                ":updates_opt_out": updates_opt_out,
             },
             ReturnValues="ALL_NEW",
         )["Attributes"]

@@ -27,7 +27,7 @@ def guest(guest_id, name, plus_one=False, child=False):
 
 
 INVITATION = {
-    "invite_code": "TEST01",
+    "invite_code": "TEST0001",
     "label": "Morgan, Sam & Ellie",
     "notes": "",
     "responded_at": None,
@@ -39,7 +39,7 @@ INVITATION = {
 }
 
 INVITATION_WITH_PLUS_ONE = {
-    "invite_code": "TEST02",
+    "invite_code": "TEST0002",
     "label": "Jamie",
     "notes": "",
     "responded_at": None,
@@ -55,11 +55,12 @@ def database_fixture(monkeypatch):
     """
     database = MagicMock()
     database.get_invitation.return_value = INVITATION
-    database.save_response.side_effect = lambda invite_code, guests, notes: {
+    database.save_response.side_effect = lambda code, guests, notes, opt_out: {
         **database.get_invitation.return_value,
         "guests": guests,
         "notes": notes,
         "responded_at": "2026-10-26T01:00:00+00:00",
+        "updates_opt_out": opt_out,
     }
     monkeypatch.setattr(invitation, "database", database)
     return database
@@ -83,32 +84,54 @@ def published_event(s3):
     return json.loads(s3.put_object.call_args.kwargs["Body"])
 
 
-def test_get_looks_up_the_invite_code_ignoring_case_and_spaces(database):
-    invite = Invitation.get(" tes t01 ")
+def test_get_looks_up_the_invite_code_ignoring_case_spaces_and_hyphens(database):
+    invite = Invitation.get(" tes-t 0001 ")
 
-    database.get_invitation.assert_called_once_with("TEST01")
+    database.get_invitation.assert_called_once_with("TEST0001")
     assert invite.view() == {
-        "invite_code": "TEST01",
+        "invite_code": "TEST0001",
         "label": "Morgan, Sam & Ellie",
         "notes": "",
         "responded_at": None,
+        "updates_opt_out": False,
         "guests": INVITATION["guests"],
     }
 
 
+def test_view_never_includes_the_email(database):
+    database.get_invitation.return_value = {**INVITATION, "email": "a@example.com"}
+    assert "a@example.com" not in json.dumps(Invitation.get("TEST0001").view())
+
+
+def test_opting_out_is_saved_and_shown(database):
+    saved = Invitation.get("TEST0001").respond(
+        {
+            "guests": [
+                {"id": 1, "attending": True},
+                {"id": 2, "attending": True},
+                {"id": 3, "attending": True},
+            ],
+            "updates_opt_out": True,
+        }
+    )
+
+    assert database.save_response.call_args.args[3] is True
+    assert saved.view()["updates_opt_out"] is True
+
+
 def test_get_unknown_invite_code_returns_none(database):
     database.get_invitation.return_value = None
-    assert Invitation.get("ZZZZZZ") is None
+    assert Invitation.get("ZZZZZZZZ") is None
 
 
-@pytest.mark.parametrize("invite_code", ["", "ABC", "TOOLONG1", "AB-C12"])
+@pytest.mark.parametrize("invite_code", ["", "ABC", "RIVERA", "TOOLONG12", "AB$C1234"])
 def test_get_malformed_invite_code_returns_none_without_a_lookup(database, invite_code):
     assert Invitation.get(invite_code) is None
     database.get_invitation.assert_not_called()
 
 
 def test_first_rsvp_is_saved_and_published(database, s3):
-    saved = Invitation.get("TEST01").respond(
+    saved = Invitation.get("TEST0001").respond(
         {
             "guests": [
                 {"id": 1, "attending": True},
@@ -120,15 +143,16 @@ def test_first_rsvp_is_saved_and_published(database, s3):
     )
 
     database.save_response.assert_called_once_with(
-        "TEST01",
+        "TEST0001",
         [
             {**guest(1, "Morgan Rivera"), "attending": True},
             {**guest(2, "Sam Rivera"), "attending": True},
             {**guest(3, "Ellie Rivera", child=True), "attending": False},
         ],
         "High chair?",
+        False,
     )
-    assert s3.put_object.call_args.kwargs["Key"].startswith("rsvps/TEST01/")
+    assert s3.put_object.call_args.kwargs["Key"].startswith("rsvps/TEST0001/")
     event = published_event(s3)
     assert (event["invitation"], event["previous"]) == (saved.view(), None)
 
@@ -139,7 +163,7 @@ def test_updated_rsvp_is_published_with_the_previous_response(database, s3):
         "responded_at": "2026-10-25T01:00:00+00:00",
     }
 
-    saved = Invitation.get("TEST01").respond(
+    saved = Invitation.get("TEST0001").respond(
         {
             "guests": [
                 {"id": 1, "attending": False},
@@ -155,7 +179,7 @@ def test_updated_rsvp_is_published_with_the_previous_response(database, s3):
 
 
 def test_text_is_trimmed_and_dietary_dropped_for_guests_not_coming(database):
-    Invitation.get("TEST01").respond(
+    Invitation.get("TEST0001").respond(
         {
             "guests": [
                 {"id": 1, "attending": True, "dietary": " Vegan "},
@@ -166,14 +190,14 @@ def test_text_is_trimmed_and_dietary_dropped_for_guests_not_coming(database):
         }
     )
 
-    saved_guests, notes = database.save_response.call_args.args[1:]
+    saved_guests, notes = database.save_response.call_args.args[1:3]
     assert [guest["dietary"] for guest in saved_guests] == ["Vegan", "", ""]
     assert notes == "hi"
 
 
 def test_body_without_a_guest_list_is_rejected(database):
     with pytest.raises(BadRequest) as error:
-        Invitation.get("TEST01").respond([])
+        Invitation.get("TEST0001").respond([])
 
     assert str(error.value) == "Expected {'guests': [{'id': ...}, ...]}."
     database.save_response.assert_not_called()
@@ -183,7 +207,7 @@ def test_answer_without_a_guest_id_is_rejected(database):
     body = {"guests": [{"attending": True}]}
 
     with pytest.raises(BadRequest) as error:
-        Invitation.get("TEST01").respond(body)
+        Invitation.get("TEST0001").respond(body)
 
     assert str(error.value) == "Expected {'guests': [{'id': ...}, ...]}."
     database.save_response.assert_not_called()
@@ -193,7 +217,7 @@ def test_every_guest_must_be_answered(database):
     body = {"guests": [{"id": 1, "attending": True}, {"id": 2, "attending": True}]}
 
     with pytest.raises(BadRequest) as error:
-        Invitation.get("TEST01").respond(body)
+        Invitation.get("TEST0001").respond(body)
 
     assert str(error.value) == "Please answer for every guest on the invitation."
     database.save_response.assert_not_called()
@@ -203,7 +227,7 @@ def test_answers_for_another_invitations_guests_are_rejected(database):
     body = {"guests": [{"id": 4, "attending": True}, {"id": 5, "attending": True}]}
 
     with pytest.raises(BadRequest) as error:
-        Invitation.get("TEST01").respond(body)
+        Invitation.get("TEST0001").respond(body)
 
     assert str(error.value) == "Please answer for every guest on the invitation."
     database.save_response.assert_not_called()
@@ -219,7 +243,7 @@ def test_attending_must_be_true_or_false(database):
     }
 
     with pytest.raises(BadRequest) as error:
-        Invitation.get("TEST01").respond(body)
+        Invitation.get("TEST0001").respond(body)
 
     assert str(error.value) == "Please say whether Morgan Rivera is attending."
     database.save_response.assert_not_called()
@@ -230,7 +254,7 @@ def test_plus_one_who_is_coming_needs_a_name(database):
     body = {"guests": [{"id": 4, "attending": True}, {"id": 5, "attending": True}]}
 
     with pytest.raises(BadRequest) as error:
-        Invitation.get("TEST02").respond(body)
+        Invitation.get("TEST0002").respond(body)
 
     assert str(error.value) == "Please tell us your guest's name."
     database.save_response.assert_not_called()
@@ -239,7 +263,7 @@ def test_plus_one_who_is_coming_needs_a_name(database):
 def test_only_the_plus_one_can_be_named(database):
     database.get_invitation.return_value = INVITATION_WITH_PLUS_ONE
 
-    Invitation.get("TEST02").respond(
+    Invitation.get("TEST0002").respond(
         {
             "guests": [
                 {"id": 4, "attending": True, "name": "Someone else"},
@@ -257,7 +281,7 @@ def test_rsvp_is_saved_even_if_publishing_fails(database, s3, caplog):
         {"Error": {"Code": "NoSuchBucket"}}, "PutObject"
     )
 
-    Invitation.get("TEST01").respond(
+    Invitation.get("TEST0001").respond(
         {
             "guests": [
                 {"id": 1, "attending": True},
@@ -268,4 +292,4 @@ def test_rsvp_is_saved_even_if_publishing_fails(database, s3, caplog):
     )
 
     database.save_response.assert_called_once()
-    assert "Failed to publish RSVP event for TEST01" in caplog.text
+    assert "Failed to publish RSVP event for TEST0001" in caplog.text
