@@ -27,8 +27,7 @@ def lambda_handler(event, _context):
     route = event.get("routeKey")
     if route not in (GET, PUT, OPT_OUT):
         return response(404, {"error": "Not found"})
-    # Opting out works while RSVPs are closed, since updates can go out before then.
-    if route != OPT_OUT and not RSVP_OPEN:
+    if route in (GET, PUT) and not RSVP_OPEN:
         return response(403, {"error": "RSVPs aren't open yet."})
 
     invitation = Invitation.get(event["pathParameters"]["invite_code"])
