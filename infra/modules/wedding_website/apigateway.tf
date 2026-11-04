@@ -11,7 +11,11 @@ resource "aws_apigatewayv2_integration" "rsvp" {
 }
 
 resource "aws_apigatewayv2_route" "rsvp" {
-  for_each = toset(["GET /rsvp/{invite_code}", "PUT /rsvp/{invite_code}"])
+  for_each = toset([
+    "GET /rsvp/{invite_code}",
+    "PUT /rsvp/{invite_code}",
+    "POST /rsvp/{invite_code}/opt-out",
+  ])
 
   api_id    = aws_apigatewayv2_api.rsvp.id
   route_key = each.value

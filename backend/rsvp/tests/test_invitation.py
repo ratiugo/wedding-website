@@ -84,8 +84,8 @@ def published_event(s3):
     return json.loads(s3.put_object.call_args.kwargs["Body"])
 
 
-def test_get_looks_up_the_invite_code_ignoring_case_spaces_and_hyphens(database):
-    invite = Invitation.get(" tes-t 0001 ")
+def test_get_looks_up_the_invite_code_ignoring_case_and_punctuation(database):
+    invite = Invitation.get(" tes-t 0001, ")
 
     database.get_invitation.assert_called_once_with("TEST0001")
     assert invite.view() == {
@@ -117,6 +117,17 @@ def test_opting_out_is_saved_and_shown(database):
 
     assert database.save_response.call_args.args[3] is True
     assert saved.view()["updates_opt_out"] is True
+
+
+def test_opt_out_only_marks_the_invitation_opted_out(database, s3):
+    invite = Invitation.get("TEST0001")
+
+    invite.opt_out()
+
+    database.opt_out.assert_called_once_with("TEST0001")
+    database.save_response.assert_not_called()
+    s3.put_object.assert_not_called()
+    assert invite.view()["updates_opt_out"] is True
 
 
 def test_get_unknown_invite_code_returns_none(database):

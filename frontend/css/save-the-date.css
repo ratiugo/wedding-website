@@ -126,6 +126,45 @@ body::after {
   color: var(--muted);
 }
 
+/* The opt-out page (opt-out.html), which uses the same card. */
+.title {
+  margin: 0.8rem 0 0.8rem;
+  font-weight: 300;
+  font-size: clamp(2.2rem, 9vw, 3rem);
+  line-height: 1.1;
+}
+
+.message {
+  max-width: 24rem;
+  margin: 0 auto;
+  font-size: 1.2rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.card-button {
+  margin-top: 2rem;
+  padding: 0.9rem 1.8rem;
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #fff;
+  background: var(--sage-deep);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.card-button:hover { background: #5a6a4d; }
+.card-button:disabled { opacity: 0.6; cursor: progress; }
+
+.error {
+  margin: 1rem 0 0;
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: #a4442f;
+}
+
 /* Optional photo: an arch-topped frame, softened slightly towards a film look. */
 .photo {
   width: min(100%, 15rem);

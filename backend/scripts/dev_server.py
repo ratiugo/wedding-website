@@ -25,7 +25,14 @@ PORT = 8080
 SITE_ROOT = Path(__file__).resolve().parents[2] / "frontend"
 LAMBDA_URL = "http://localhost:9000/2015-03-31/functions/function/invocations"
 
-ROUTES = [(re.compile(r"^/api/rsvp/([^/]+)$"), "/rsvp/{invite_code}", "invite_code")]
+ROUTES = [
+    (re.compile(r"^/api/rsvp/([^/]+)$"), "/rsvp/{invite_code}", "invite_code"),
+    (
+        re.compile(r"^/api/rsvp/([^/]+)/opt-out$"),
+        "/rsvp/{invite_code}/opt-out",
+        "invite_code",
+    ),
+]
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -74,6 +81,12 @@ class Handler(SimpleHTTPRequestHandler):
     def do_PUT(self):
         """
         Forward PUTs to the Lambda.
+        """
+        self.proxy()
+
+    def do_POST(self):
+        """
+        Forward POSTs to the Lambda.
         """
         self.proxy()
 
