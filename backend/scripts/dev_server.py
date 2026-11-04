@@ -55,6 +55,13 @@ class Handler(SimpleHTTPRequestHandler):
             path += ".html"
         return super().translate_path(path)
 
+    def end_headers(self):
+        """
+        Ask browsers to check for a newer file each time, as the deployed site does.
+        """
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def redirect(self, location):
         """
         Send a permanent redirect, as CloudFront does for .html addresses.

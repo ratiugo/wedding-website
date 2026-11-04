@@ -112,7 +112,42 @@ a { color: var(--accent-dark); }
   color: var(--text);
 }
 .rsvp input:focus, .rsvp textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-#invite-code { text-transform: uppercase; letter-spacing: .15em; text-align: center; font-size: 1.2rem; }
+#lookup-form label { text-align: center; }
+.code-entry { position: relative; align-self: center; }
+/* Invisible but still focused, typed and pasted into. 16px stops iPhones zooming in. */
+.rsvp .code-entry input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  font-size: 16px;
+  cursor: text;
+}
+.code-slots { display: flex; align-items: center; gap: .35rem; }
+.code-slots span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(1.9rem, 8vw, 2.6rem);
+  height: 3.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: var(--text);
+  transition: border-color .15s, box-shadow .15s;
+}
+.code-slots span.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.code-slots span.active:empty::after {
+  content: "";
+  width: 1px;
+  height: 1.4rem;
+  background: var(--text);
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.code-dash { width: .7rem; height: 2px; margin: 0 .3rem; border-radius: 1px; background: var(--muted); }
 .greeting { font-family: var(--serif); font-size: 1.5rem; text-align: center; margin: 0; }
 .optional { color: var(--muted); font-size: .85rem; }
 .error { color: #a4442f; margin: 0; text-align: center; }
