@@ -1,23 +1,24 @@
 """
 Create the local fake AWS resources that `make start` needs: the RSVP bucket, and the
-invitations table with the example invitations from data/invitations.example.json.
+invitations table with the example invitations from data/guests.example.csv.
 
 Runs in the rsvp container, where AWS_ENDPOINT_URL points boto3 at the fake (moto).
 The fake keeps everything in memory, so it starts empty each time it's created.
 """
 
-import json
 import os
-from pathlib import Path
 
 import boto3
 
-EXAMPLES = Path("/data/invitations.example.json")
+from load_guests import add, read_guest_list
+
+EXAMPLES = "/data/guests.example.csv"
 
 
 def main():
     """
-    Create the bucket and table, and add the example invitations to a new table.
+    Create the bucket and table, add the example invitations to a new table, and
+    print their RSVP links (their codes are random, so new each time).
     """
     boto3.client("s3").create_bucket(Bucket=os.environ["RSVP_BUCKET"])
 
@@ -35,34 +36,13 @@ def main():
         print("Invitations table already exists, left as is")
         return
 
-    for example in json.loads(EXAMPLES.read_text(encoding="utf-8")):
-        table.put_item(Item=invitation(example))
-
-
-def invitation(example):
-    """
-    A full invitation item from an example, which only gives the invite code, label,
-    email (if there is one), and each guest's name (plus plus_one or child when true).
-    """
-    return {
-        "invite_code": example["invite_code"],
-        "label": example["label"],
-        "email": example.get("email"),
-        "notes": "",
-        "responded_at": None,
-        "updates_opt_out": False,
-        "guests": [
-            {
-                "id": number,
-                "name": guest["name"],
-                "plus_one": guest.get("plus_one", False),
-                "child": guest.get("child", False),
-                "attending": None,
-                "dietary": "",
-            }
-            for number, guest in enumerate(example["guests"], start=1)
-        ],
-    }
+    invitations, problems = read_guest_list(EXAMPLES)
+    if problems:
+        raise ValueError(f"{EXAMPLES} has problems: {problems}")
+    print("Example invitations:")
+    for item in add(table, invitations, set()):
+        link = f"http://localhost:8080/rsvp?invite_code={item['invite_code']}"
+        print(f"  {item['label']}: {link}")
 
 
 if __name__ == "__main__":

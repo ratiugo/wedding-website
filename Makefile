@@ -11,7 +11,7 @@ COMPOSE = $(DOCKER) compose -f backend/docker-compose.yml
 # Which environment's Google Sheet `make sheet-setup` works on: dev, or ENV=prod.
 ENV ?= dev
 
-.PHONY: start stop sheet-setup test format lint
+.PHONY: start stop sheet-setup load-guests test format lint
 
 # Start the RSVP Lambda and fake AWS, create the bucket and the example invitations,
 # then serve the site and API (Ctrl+C to stop).
@@ -30,6 +30,16 @@ stop:
 sheet-setup:
 	GOOGLE_SHEET_ID=$(if $(filter prod,$(ENV)),$(PROD_GOOGLE_SHEET_ID),$(DEV_GOOGLE_SHEET_ID)) \
 		$(COMPOSE) run --rm --build sheet-setup
+
+# Add the invitations in dev's guest list (backend/data/guests.dev.csv) that aren't in
+# its table yet, or prod's (guests.csv) with ENV=prod, after showing them and asking.
+# Then writes each invitation's code and RSVP link to backend/data/codes.<env>.csv.
+load-guests:
+	$(COMPOSE) run --rm --build \
+		-e INVITATIONS_TABLE=wedding-$(ENV)-invitations \
+		-e SITE_URL=https://$(if $(filter prod,$(ENV)),tessandcolton.com,dev.tessandcolton.com) \
+		load-guests /data/$(if $(filter prod,$(ENV)),guests.csv,guests.dev.csv) \
+		--codes /data/codes.$(ENV).csv
 
 # Run the backend tests (the database, S3, SES and Google Sheets are all mocked).
 test:
