@@ -41,7 +41,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 import card
-from load_guests import scan
+from load_guests import get_invitations
 
 SITE_URL = os.environ.get("SITE_URL", "")
 SENDER = os.environ.get("SENDER", "")
@@ -70,10 +70,10 @@ def main():
         sys.exit(1)
 
     table = boto3.resource("dynamodb").Table(os.environ["INVITATIONS_TABLE"])
-    recipients, skipped = choose_recipients(
-        scan(table), message["audience"], already_sent(args.sent)
-    )
-    show_plan(table.name, message, recipients, skipped)
+    invitations = get_invitations(table)
+    sent_codes = get_sent_codes(args.sent)
+    recipients, skipped = get_recipients(invitations, message["audience"], sent_codes)
+    print_plan(table.name, message, recipients, skipped)
     if not recipients:
         return
 
@@ -81,8 +81,8 @@ def main():
         file.write(html(message, recipients[0]))
     print(f"  preview (as {recipients[0]['label']} gets it): {args.preview}")
 
-    if confirm(message, recipients[0]):
-        failed = send_all(message, recipients, args.sent)
+    if confirm_send(message, recipients[0]):
+        failed = send_to_recipients(message, recipients, args.sent)
         print(f"Sent to {len(recipients) - len(failed)} of {len(recipients)}.")
         if failed:
             print("Failed (run it again to retry them):")
@@ -123,7 +123,7 @@ def read_message(path):
     return message, problems
 
 
-def choose_recipients(invitations, audience, sent_codes):
+def get_recipients(invitations, audience, sent_codes):
     """
     Return (recipients, skipped): the invitations in the audience that can be sent
     to, sorted by label, and the number skipped for each reason.
@@ -165,7 +165,7 @@ def skip_reason(invitation, sent_codes):
     return None
 
 
-def already_sent(path):
+def get_sent_codes(path):
     """
     Return the invite codes recorded in a sent CSV.
     """
@@ -175,7 +175,7 @@ def already_sent(path):
         return {row["invite_code"] for row in csv.DictReader(file)}
 
 
-def show_plan(table_name, message, recipients, skipped):
+def print_plan(table_name, message, recipients, skipped):
     """
     Print who the update would be sent to, and how many were skipped and why.
     """
@@ -189,7 +189,7 @@ def show_plan(table_name, message, recipients, skipped):
         print("Nobody to send to.")
 
 
-def confirm(message, sample):
+def confirm_send(message, sample):
     """
     Prompt until the user sends or stops. "test" sends the sample invitation's
     email to REPLY_TO and prompts again. Return whether to send.
@@ -208,7 +208,7 @@ def confirm(message, sample):
         print(f"Sent a test to {REPLY_TO}.")
 
 
-def send_all(message, recipients, sent_path):
+def send_to_recipients(message, recipients, sent_path):
     """
     Send the update to each recipient, appending each success to the sent CSV.
     Return a description of each failure.

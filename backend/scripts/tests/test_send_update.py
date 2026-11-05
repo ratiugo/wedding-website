@@ -8,7 +8,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 import send_update
-from send_update import choose_recipients, read_message, send_all
+from send_update import get_recipients, read_message, send_to_recipients
 
 
 @pytest.fixture(autouse=True)
@@ -106,7 +106,7 @@ def test_accepted_is_invitations_with_someone_coming():
     coming = invitation(attending=True)
     not_coming = invitation(attending=False)
 
-    to_send, _ = choose_recipients([coming, not_coming], "accepted", set())
+    to_send, _ = get_recipients([coming, not_coming], "accepted", set())
 
     assert to_send == [coming]
 
@@ -115,20 +115,20 @@ def test_no_response_is_invitations_without_an_rsvp():
     answered = invitation(attending=False)
     unanswered = invitation()
 
-    to_send, _ = choose_recipients([answered, unanswered], "no-response", set())
+    to_send, _ = get_recipients([answered, unanswered], "no-response", set())
 
     assert to_send == [unanswered]
 
 
 def test_invitations_without_an_email_are_skipped():
-    to_send, skipped = choose_recipients([invitation(email=None)], "everyone", set())
+    to_send, skipped = get_recipients([invitation(email=None)], "everyone", set())
 
     assert not to_send
     assert skipped["no email"] == 1
 
 
 def test_opted_out_invitations_are_skipped():
-    to_send, skipped = choose_recipients(
+    to_send, skipped = get_recipients(
         [invitation(updates_opt_out=True)], "everyone", set()
     )
 
@@ -137,7 +137,7 @@ def test_opted_out_invitations_are_skipped():
 
 
 def test_invitations_already_sent_to_are_skipped():
-    to_send, skipped = choose_recipients([invitation()], "everyone", {"CODE0001"})
+    to_send, skipped = get_recipients([invitation()], "everyone", {"CODE0001"})
 
     assert not to_send
     assert skipped["already sent"] == 1
@@ -210,6 +210,8 @@ def test_only_successful_sends_are_recorded(tmp_path):
     ]
     sent_path = tmp_path / "update.sent.dev.csv"
 
-    send_all(MESSAGE, [invitation("CODE0001"), invitation("CODE0002")], sent_path)
+    send_to_recipients(
+        MESSAGE, [invitation("CODE0001"), invitation("CODE0002")], sent_path
+    )
 
-    assert send_update.already_sent(sent_path) == {"CODE0001"}
+    assert send_update.get_sent_codes(sent_path) == {"CODE0001"}

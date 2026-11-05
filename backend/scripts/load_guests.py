@@ -39,7 +39,7 @@ def main():
         sys.exit(1)
 
     table = boto3.resource("dynamodb").Table(os.environ["INVITATIONS_TABLE"])
-    items = scan(table)
+    items = get_invitations(table)
     loaded = {item["label"] for item in items}
     new = [
         invitation for invitation in invitations if invitation["label"] not in loaded
@@ -164,9 +164,9 @@ def new_code(taken):
             return code
 
 
-def scan(table):
+def get_invitations(table):
     """
-    Every item in the table.
+    Return every invitation in the table.
     """
     response = table.scan()
     items = response["Items"]
