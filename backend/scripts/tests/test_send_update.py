@@ -8,7 +8,12 @@ import pytest
 from botocore.exceptions import ClientError
 
 import send_update
-from send_update import get_recipients, read_message, send_to_recipients
+from send_update import (
+    get_recipients,
+    parse_message,
+    send_to_recipients,
+    validate_message,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -55,27 +60,18 @@ def sent_email():
     return send_update.ses.send_email.call_args.kwargs
 
 
-# Reading message files
+# Parsing message files
 
 
-def message_file(tmp_path, text):
-    """
-    Write a message file and read it back.
-    """
+def test_a_message_file_is_headers_then_paragraphs(tmp_path):
     path = tmp_path / "update.txt"
-    path.write_text(text, encoding="utf-8")
-    return read_message(path)
-
-
-def test_a_message_has_headers_then_paragraphs(tmp_path):
-    message, problems = message_file(
-        tmp_path,
+    path.write_text(
         "Subject: Hi\nAudience: everyone\nLink: Go | /itinerary\n\n"
         "One.\nStill one.\n\nTwo.\n",
+        encoding="utf-8",
     )
 
-    assert not problems
-    assert message == {
+    assert parse_message(path) == {
         "name": "update",
         "subject": "Hi",
         "audience": "everyone",
@@ -84,21 +80,36 @@ def test_a_message_has_headers_then_paragraphs(tmp_path):
     }
 
 
-def test_a_message_needs_a_subject_and_audience(tmp_path):
-    _, problems = message_file(tmp_path, "Heading: Hi\n\nHello.\n")
-    assert problems == ["Missing header: Subject", "Missing header: Audience"]
+# Validating messages
 
 
-def test_an_unknown_audience_is_a_problem(tmp_path):
-    _, problems = message_file(tmp_path, "Subject: Hi\nAudience: friends\n\nHello.\n")
-    assert problems == ["Audience should be one of: accepted, no-response, everyone"]
+def test_a_complete_message_is_valid():
+    assert not validate_message(MESSAGE)
 
 
-def test_a_misspelled_header_is_a_problem(tmp_path):
-    _, problems = message_file(
-        tmp_path, "Subject: Hi\nAudience: everyone\nHeadng: Hi\n\nHello.\n"
-    )
-    assert problems == ["Unknown header: Headng: Hi"]
+def test_a_message_needs_a_subject_and_audience():
+    errors = validate_message({"name": "update", "paragraphs": ["Hello."]})
+    assert errors == ["Missing header: Subject", "Missing header: Audience"]
+
+
+def test_an_unknown_audience_is_an_error():
+    errors = validate_message({**MESSAGE, "audience": "friends"})
+    assert errors == ["Audience should be one of: accepted, no-response, everyone"]
+
+
+def test_a_misspelled_header_is_an_error():
+    errors = validate_message({**MESSAGE, "headng": "Hi"})
+    assert errors == ["Unknown header: headng"]
+
+
+def test_a_link_needs_text_and_a_url():
+    errors = validate_message({**MESSAGE, "link": ("", "/itinerary")})
+    assert errors == ["Link should be like: See the itinerary | /itinerary"]
+
+
+def test_a_message_needs_a_body():
+    errors = validate_message({**MESSAGE, "paragraphs": []})
+    assert errors == ["The message is empty"]
 
 
 # Choosing recipients
@@ -151,20 +162,20 @@ def test_invitations_already_sent_to_are_skipped():
 
 
 def test_the_email_greets_the_invitation():
-    html = send_update.html(MESSAGE, invitation(label="Sam <Alex>"))
+    html = send_update.render_html(MESSAGE, invitation(label="Sam <Alex>"))
     assert "Hi Sam &lt;Alex&gt;," in html
 
 
 def test_a_site_link_gets_the_site_address():
-    assert send_update.site_url("/itinerary") == "https://example.com/itinerary"
+    assert send_update.full_url("/itinerary") == "https://example.com/itinerary"
 
 
 def test_a_full_link_is_left_as_is():
-    assert send_update.site_url("https://maps.example") == "https://maps.example"
+    assert send_update.full_url("https://maps.example") == "https://maps.example"
 
 
 def test_the_plain_text_email():
-    assert send_update.text(MESSAGE, invitation()) == (
+    assert send_update.render_text(MESSAGE, invitation()) == (
         "Hi Sam,\n\n"
         "We've added the schedule.\n\n"
         "See the itinerary: https://example.com/itinerary\n\n"
@@ -176,19 +187,19 @@ def test_the_plain_text_email():
 
 
 def test_an_update_goes_to_the_invitations_email():
-    send_update.send(MESSAGE, invitation())
+    send_update.send_email(MESSAGE, invitation())
     assert sent_email()["Destination"] == {"ToAddresses": ["sam@example.com"]}
 
 
 def test_replies_and_bounces_go_to_reply_to():
-    send_update.send(MESSAGE, invitation())
+    send_update.send_email(MESSAGE, invitation())
 
     assert sent_email()["ReplyToAddresses"] == ["us@example.com"]
     assert sent_email()["FeedbackForwardingEmailAddress"] == "us@example.com"
 
 
 def test_the_unsubscribe_header_opens_the_invitations_opt_out_page():
-    send_update.send(MESSAGE, invitation())
+    send_update.send_email(MESSAGE, invitation())
 
     headers = sent_email()["Content"]["Simple"]["Headers"]
     assert headers == [
@@ -200,7 +211,7 @@ def test_the_unsubscribe_header_opens_the_invitations_opt_out_page():
 
 
 def test_a_test_send_goes_to_the_given_address_marked_test():
-    send_update.send(MESSAGE, invitation(), to="us@example.com")
+    send_update.send_email(MESSAGE, invitation(), to="us@example.com")
 
     assert sent_email()["Destination"] == {"ToAddresses": ["us@example.com"]}
     subject = sent_email()["Content"]["Simple"]["Subject"]["Data"]

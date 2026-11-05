@@ -45,9 +45,9 @@ from botocore.exceptions import ClientError
 import card
 from load_guests import get_invitations
 
-SITE_URL = os.environ.get("SITE_URL", "")
-SENDER = os.environ.get("SENDER", "")
-REPLY_TO = os.environ.get("REPLY_TO", "")
+SITE_URL = os.environ["SITE_URL"]
+SENDER = os.environ["SENDER"]
+REPLY_TO = os.environ["REPLY_TO"]
 
 AUDIENCES = ("accepted", "no-response", "everyone")
 HEADERS = ("subject", "audience", "heading", "link")
@@ -64,10 +64,11 @@ def main():
     parser.add_argument("--preview", required=True, help="HTML file for a preview")
     args = parser.parse_args()
 
-    message, problems = read_message(args.message)
-    if problems:
-        print("The message has problems, so nothing was sent:")
-        print("\n".join(f"  {problem}" for problem in problems))
+    message = parse_message(args.message)
+    errors = validate_message(message)
+    if errors:
+        print("The message has errors, so nothing was sent:")
+        print("\n".join(f"  {error}" for error in errors))
         sys.exit(1)
 
     table = boto3.resource("dynamodb").Table(os.environ["INVITATIONS_TABLE"])
@@ -78,7 +79,7 @@ def main():
         return
 
     with open(args.preview, "w", encoding="utf-8") as file:
-        file.write(html(message, recipients[0]))
+        file.write(render_html(message, recipients[0]))
     print(f"  preview (as {recipients[0]['label']} gets it): {args.preview}")
 
     if confirm_send(message, recipients[0]):
@@ -89,12 +90,12 @@ def main():
             print("\n".join(f"  {failure}" for failure in failed))
 
 
-def read_message(path):
+def parse_message(path):
     """
-    Parse a message file. Return (message, problems).
+    Parse a message file into a dict.
 
-    message has "name" (the file's name without .txt), "subject", "audience" and
-    "paragraphs", plus "heading" and "link" (a (text, url) tuple) when given.
+    The dict has "name" (the file's name without .txt), "paragraphs", and each header
+    by its lowercase name. "link" is split into a (text, url) tuple.
     """
     with open(path, encoding="utf-8") as file:
         headers, _, body = file.read().strip().partition("\n\n")
@@ -103,27 +104,34 @@ def read_message(path):
         "name": Path(path).stem,
         "paragraphs": [p.strip() for p in re.split(r"\n\s*\n", body) if p],
     }
-    problems = []
     for line in headers.splitlines():
         name, _, value = line.partition(":")
-        if name.strip().lower() in HEADERS:
-            message[name.strip().lower()] = value.strip()
-        else:
-            problems.append(f"Unknown header: {line}")
-
-    for header in ("subject", "audience"):
-        if not message.get(header):
-            problems.append(f"Missing header: {header.capitalize()}")
-    if message.get("audience") and message["audience"] not in AUDIENCES:
-        problems.append(f"Audience should be one of: {', '.join(AUDIENCES)}")
+        message[name.strip().lower()] = value.strip()
     if "link" in message:
         link_text, _, url = message["link"].partition("|")
-        if not link_text.strip() or not url.strip():
-            problems.append("Link should be like: See the itinerary | /itinerary")
         message["link"] = (link_text.strip(), url.strip())
+    return message
+
+
+def validate_message(message):
+    """
+    Return a list of what's wrong with a parsed message, empty if it's valid.
+    """
+    errors = [
+        f"Unknown header: {name}"
+        for name in message
+        if name not in HEADERS and name not in ("name", "paragraphs")
+    ]
+    for header in ("subject", "audience"):
+        if not message.get(header):
+            errors.append(f"Missing header: {header.capitalize()}")
+    if message.get("audience") and message["audience"] not in AUDIENCES:
+        errors.append(f"Audience should be one of: {', '.join(AUDIENCES)}")
+    if "link" in message and not all(message["link"]):
+        errors.append("Link should be like: See the itinerary | /itinerary")
     if not message["paragraphs"]:
-        problems.append("The message is empty")
-    return message, problems
+        errors.append("The message is empty")
+    return errors
 
 
 def get_recipients(invitations, message):
@@ -182,10 +190,10 @@ def print_plan(table_name, message, recipients, skipped):
         print("Nobody to send to.")
 
 
-def confirm_send(message, sample):
+def confirm_send(message, preview_invitation):
     """
-    Prompt until the user sends or stops. "test" sends the sample invitation's
-    email to REPLY_TO and prompts again. Return whether to send.
+    Prompt until the user sends or stops. "test" sends preview_invitation's email to
+    REPLY_TO and prompts again. Return whether to send.
     """
     while True:
         answer = input(
@@ -197,7 +205,7 @@ def confirm_send(message, sample):
         if answer != "test":
             print("Nothing was sent.")
             return False
-        send(message, sample, to=REPLY_TO)
+        send_email(message, preview_invitation, to=REPLY_TO)
         print(f"Sent a test to {REPLY_TO}.")
 
 
@@ -209,7 +217,7 @@ def send_to_recipients(table, message, recipients):
     failed = []
     for invitation in recipients:
         try:
-            send(message, invitation)
+            send_email(message, invitation)
         except ClientError as error:
             failed.append(f"{invitation['label']} <{invitation['email']}>: {error}")
             continue
@@ -223,7 +231,7 @@ def send_to_recipients(table, message, recipients):
     return failed
 
 
-def send(message, invitation, to=None):
+def send_email(message, invitation, to=None):
     """
     Send the update for an invitation to its email, or to `to` as a test.
 
@@ -242,8 +250,14 @@ def send(message, invitation, to=None):
                     "Charset": "UTF-8",
                 },
                 "Body": {
-                    "Text": {"Data": text(message, invitation), "Charset": "UTF-8"},
-                    "Html": {"Data": html(message, invitation), "Charset": "UTF-8"},
+                    "Text": {
+                        "Data": render_text(message, invitation),
+                        "Charset": "UTF-8",
+                    },
+                    "Html": {
+                        "Data": render_html(message, invitation),
+                        "Charset": "UTF-8",
+                    },
                 },
                 "Headers": [
                     {
@@ -256,7 +270,7 @@ def send(message, invitation, to=None):
     )
 
 
-def html(message, invitation):
+def render_html(message, invitation):
     """
     Render the update as HTML for an invitation.
     """
@@ -268,7 +282,7 @@ def html(message, invitation):
     ]
     if "link" in message:
         link_text, url = message["link"]
-        content.append(card.button(escape(link_text), escape(site_url(url))))
+        content.append(card.button(escape(link_text), escape(full_url(url))))
     return card.card(
         "\n".join(content),
         eyebrow=card.ampersand("Tess &amp; Colton"),
@@ -281,19 +295,19 @@ def html(message, invitation):
     )
 
 
-def text(message, invitation):
+def render_text(message, invitation):
     """
     Render the update as plain text for an invitation.
     """
     lines = [f"Hi {invitation['label']},", *message["paragraphs"]]
     if "link" in message:
         link_text, url = message["link"]
-        lines.append(f"{link_text}: {site_url(url)}")
+        lines.append(f"{link_text}: {full_url(url)}")
     lines.append(f"--\nStop getting updates: {opt_out_url(invitation)}")
     return "\n\n".join(lines)
 
 
-def site_url(url):
+def full_url(url):
     """
     Resolve a message link, prefixing a site-relative path with SITE_URL.
     """

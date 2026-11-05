@@ -98,6 +98,10 @@ services:
       # The tests mock AWS; boto3 still needs a region and table name to set up.
       AWS_DEFAULT_REGION: us-east-1
       INVITATIONS_TABLE: wedding-invitations
+      # scripts/send_update.py requires these; its tests set their own values.
+      SITE_URL: https://example.com
+      SENDER: Us <hello@example.com>
+      REPLY_TO: us@example.com
       PYTHONPATH: /backend/rsvp:/backend/scripts:/backend/notifier:/var/task
     volumes:
       - ./:/backend
