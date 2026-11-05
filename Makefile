@@ -46,6 +46,7 @@ load-guests:
 # Uses UPDATE_SENDER and REPLY_TO from backend/.env.
 send-update:
 	$(if $(FILE),,$(error Set FILE to a message file, like FILE=updates/itinerary.txt))
+	$(if $(wildcard $(FILE)),,$(error No message file at $(FILE)))
 	mkdir -p updates
 	$(COMPOSE) run --rm --build \
 		-e INVITATIONS_TABLE=wedding-$(ENV)-invitations \
