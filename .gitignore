@@ -4,6 +4,7 @@ __pycache__/
 backend/data/guests.csv
 backend/data/guests.dev.csv
 backend/data/codes.*.csv
+updates/
 .pytest_cache/
 
 backend/.env

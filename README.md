@@ -13,7 +13,8 @@ frontend/              The site: index.html, rsvp.html, css/, js/
 backend/rsvp/          RSVP Lambda: handler.py (API routes), invitation.py, db.py
 backend/notifier/      Notifier Lambda: handler.py, emails.py, sheets.py
 backend/scripts/       dev_server.py (local site + API), local_aws.py (local bucket, table, examples),
-                       setup_sheet.py (Google Sheet tabs), load_guests.py (guest list -> invitations)
+                       setup_sheet.py (Google Sheet tabs), load_guests.py (guest list -> invitations),
+                       send_update.py (update emails to guests)
 backend/data/          guests.example.csv (local example guests, and the guest list format)
 backend/docker-compose.yml   Local services, plus the test images
 ```
@@ -28,6 +29,9 @@ make stop         # stop the containers; the next start begins with the example 
 make sheet-setup  # create dev's Google Sheet tabs; ENV=prod for the real sheet (needs backend/.env)
 make load-guests  # add new invitations from backend/data/guests.dev.csv to dev, after asking;
                   # ENV=prod for guests.csv (signs in with your AWS profile)
+make send-update FILE=updates/<name>.txt
+                  # email an update to dev's guests, after showing who and asking;
+                  # ENV=prod for real guests (message format in scripts/send_update.py)
 ```
 
 The local database starts with the example invitations in

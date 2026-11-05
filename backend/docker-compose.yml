@@ -58,6 +58,26 @@ services:
       # Writable, so an expired AWS sign-in can refresh.
       - ~/.aws:/root/.aws
 
+  # `make send-update`: scripts/send_update.py against real AWS, using your AWS profile.
+  send-update:
+    profiles: [tools]
+    build:
+      context: ./rsvp
+      target: runtime
+    entrypoint: ["python", "/scripts/send_update.py"]
+    environment:
+      AWS_PROFILE: ${AWS_PROFILE:-}
+      AWS_DEFAULT_REGION: us-west-2
+      HOME: /root
+      # For notifier/card.py.
+      PYTHONPATH: /notifier
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./notifier:/notifier:ro
+      # Writable for previews.
+      - ../updates:/updates
+      - ~/.aws:/root/.aws
+
   # Fake AWS (moto server) for S3 and DynamoDB, in memory: `make start` recreates the
   # bucket and table each time this container is created.
   aws:
@@ -78,7 +98,11 @@ services:
       # The tests mock AWS; boto3 still needs a region and table name to set up.
       AWS_DEFAULT_REGION: us-east-1
       INVITATIONS_TABLE: wedding-invitations
-      PYTHONPATH: /backend/rsvp:/backend/scripts:/var/task
+      # scripts/send_update.py requires these; its tests set their own values.
+      SITE_URL: https://example.com
+      SENDER: Us <hello@example.com>
+      REPLY_TO: us@example.com
+      PYTHONPATH: /backend/rsvp:/backend/scripts:/backend/notifier:/var/task
     volumes:
       - ./:/backend
 

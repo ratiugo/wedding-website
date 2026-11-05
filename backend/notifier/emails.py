@@ -16,45 +16,12 @@ from zoneinfo import ZoneInfo
 
 import boto3
 
+import card
+
 TIMEZONE = ZoneInfo("America/Vancouver")
 SENDER_NAME = os.environ["SENDER_NAME"]
 SENDER_EMAIL = os.environ["SENDER_EMAIL"]
 RECIPIENT_EMAILS = os.environ["RECIPIENT_EMAILS"].split(",")
-
-# The save-the-date card's look, with inline styles because email apps ignore most
-# stylesheets. Gmail doesn't load web fonts, so it shows Georgia and Arial instead.
-SERIF = "'Cormorant Garamond', Georgia, serif"
-SANS = "Jost, 'Helvetica Neue', Arial, sans-serif"
-
-HTML = """<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400&family=Jost&display=swap" rel="stylesheet">
-</head>
-<body style="margin: 0; padding: 0; background: #efe9f1;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #efe9f1;">
-<tr><td align="center" style="padding: 32px 12px;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 560px; background: #fbf9f4; border: 1px solid #9aab8a;">
-  <tr><td style="padding: 8px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #9aab8a;">
-    <tr><td align="center" style="padding: 40px 28px; font-family: {serif}; color: #3e3a36;">
-      <p style="margin: 0; font-family: {sans}; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #6c7d5e;">{eyebrow}</p>
-      <h1 style="margin: 12px 0 4px; font-family: {serif}; font-size: 34px; font-weight: normal; line-height: 1.2;">{label}</h1>
-      <p style="margin: 0; font-size: 18px; font-style: italic; color: #7a736b;">{summary}</p>
-      <hr style="width: 64px; margin: 28px auto; border: 0; border-top: 1px solid #9aab8a;">
-      {sections}
-      <p style="margin: 32px 0 0; font-family: {sans}; font-size: 11px; letter-spacing: 1px; color: #7a736b;">{footer}</p>
-    </td></tr>
-    </table>
-  </td></tr>
-  </table>
-</td></tr>
-</table>
-</body>
-</html>
-"""
 
 ses = boto3.client("sesv2")
 
@@ -153,24 +120,14 @@ class RsvpEmail:
                 )
             )
         if self.invitation["notes"]:
-            note = escape(self.invitation["notes"])
-            sections.append(
-                '<p style="margin: 8px 0 0; font-size: 20px; font-style: italic;'
-                f' color: #9a84b5;">&ldquo;{note}&rdquo;</p>'
-            )
+            sections.append(card.quote(escape(self.invitation["notes"])))
 
         guests = len(self.invitation["guests"])
-        return HTML.format(
-            serif=SERIF,
-            sans=SANS,
+        return card.card(
+            "".join(sections),
             eyebrow="Updated RSVP" if self.previous else "New RSVP",
-            # The ampersand in lilac italic, as on the save-the-date.
-            label=escape(self.label).replace(
-                "&amp;",
-                '<span style="font-style: italic; color: #9a84b5;">&amp;</span>',
-            ),
-            summary=f"{len(self.coming)} of {guests} coming",
-            sections="".join(sections),
+            title=card.ampersand(escape(self.label)),
+            subtitle=f"{len(self.coming)} of {guests} coming",
             footer=escape(
                 f"Invite code {self.invitation['invite_code']} · "
                 f"Responded {self.responded()}"
@@ -228,13 +185,6 @@ def section(title, lines):
     """
     A titled list for the HTML email, like "Coming (2)" and a line per guest.
     """
-    heading = (
-        f'<p style="margin: 24px 0 8px; font-family: {SANS}; font-size: 11px;'
-        ' letter-spacing: 3px; text-transform: uppercase; color: #6c7d5e;">'
-        f"{escape(title)}</p>"
+    return card.heading(escape(title)) + "".join(
+        card.paragraph(escape(line)) for line in lines
     )
-    items = "".join(
-        f'<p style="margin: 4px 0; font-size: 18px;">{escape(line)}</p>'
-        for line in lines
-    )
-    return heading + items

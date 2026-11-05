@@ -6,12 +6,13 @@ DOCKER ?= $(shell command -v docker || echo /Applications/Docker.app/Contents/Re
 export PATH := $(dir $(DOCKER)):$(PATH)
 COMPOSE = $(DOCKER) compose -f backend/docker-compose.yml
 
-# backend/.env's settings (the Google Sheet ids), if it exists.
+# Local settings (Google Sheet ids, update sender and reply-to), if present.
 -include backend/.env
-# Which environment's Google Sheet `make sheet-setup` works on: dev, or ENV=prod.
+# Environment for sheet-setup, load-guests and send-update: dev (default) or prod.
 ENV ?= dev
+SITE_URL = https://$(if $(filter prod,$(ENV)),tessandcolton.com,dev.tessandcolton.com)
 
-.PHONY: start stop sheet-setup load-guests test format lint
+.PHONY: start stop sheet-setup load-guests send-update test format lint
 
 # Start the RSVP Lambda and fake AWS, create the bucket and the example invitations,
 # then serve the site and API (Ctrl+C to stop).
@@ -37,9 +38,23 @@ sheet-setup:
 load-guests:
 	$(COMPOSE) run --rm --build \
 		-e INVITATIONS_TABLE=wedding-$(ENV)-invitations \
-		-e SITE_URL=https://$(if $(filter prod,$(ENV)),tessandcolton.com,dev.tessandcolton.com) \
+		-e SITE_URL=$(SITE_URL) \
 		load-guests /data/$(if $(filter prod,$(ENV)),guests.csv,guests.dev.csv) \
 		--codes /data/codes.$(ENV).csv
+
+# Send the update in FILE, a message file in updates/ (see scripts/send_update.py).
+# Uses UPDATE_SENDER and REPLY_TO from backend/.env.
+send-update:
+	$(if $(FILE),,$(error Set FILE to a message file, like FILE=updates/itinerary.txt))
+	$(if $(wildcard $(FILE)),,$(error No message file at $(FILE)))
+	mkdir -p updates
+	$(COMPOSE) run --rm --build \
+		-e INVITATIONS_TABLE=wedding-$(ENV)-invitations \
+		-e SITE_URL=$(SITE_URL) \
+		-e 'SENDER=$(UPDATE_SENDER)' \
+		-e REPLY_TO=$(REPLY_TO) \
+		send-update /updates/$(notdir $(FILE)) \
+		--preview /updates/$(basename $(notdir $(FILE))).preview.html
 
 # Run the backend tests (the database, S3, SES and Google Sheets are all mocked).
 test:
