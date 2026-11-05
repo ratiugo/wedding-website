@@ -33,6 +33,7 @@ import os
 import re
 import sys
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from html import escape
 
@@ -46,11 +47,7 @@ SITE_URL = os.environ.get("SITE_URL", "")
 SENDER = os.environ.get("SENDER", "")
 REPLY_TO = os.environ.get("REPLY_TO", "")
 
-AUDIENCES = {
-    "accepted": lambda item: any(guest["attending"] for guest in item["guests"]),
-    "no-response": lambda item: item["responded_at"] is None,
-    "everyone": lambda item: True,
-}
+AUDIENCES = ("accepted", "no-response", "everyone")
 HEADERS = ("subject", "audience", "heading", "link")
 
 ses = boto3.client("sesv2")
@@ -58,7 +55,7 @@ ses = boto3.client("sesv2")
 
 def main():
     """
-    List the recipients, prompt for confirmation, and send.
+    Validate the message, choose its recipients, confirm, and send.
     """
     parser = argparse.ArgumentParser(description="Email an update to guests.")
     parser.add_argument("message", help="the message file")
@@ -73,39 +70,23 @@ def main():
         sys.exit(1)
 
     table = boto3.resource("dynamodb").Table(os.environ["INVITATIONS_TABLE"])
-    to_send, skipped = recipients(scan(table), message["audience"], sent(args.sent))
-    print(
-        f'{table.name}: "{message["subject"]}" to {len(to_send)} invitations'
-        f' ({message["audience"]})'
+    recipients, skipped = choose_recipients(
+        scan(table), message["audience"], already_sent(args.sent)
     )
-    print(f"  skipped: {', '.join(f'{n} {why}' for why, n in skipped.items())}")
-    if not to_send:
-        print("Nobody to send to.")
+    show_plan(table.name, message, recipients, skipped)
+    if not recipients:
         return
 
     with open(args.preview, "w", encoding="utf-8") as file:
-        file.write(html(message, to_send[0]))
-    print(f"  preview (as {to_send[0]['label']} gets it): {args.preview}")
+        file.write(html(message, recipients[0]))
+    print(f"  preview (as {recipients[0]['label']} gets it): {args.preview}")
 
-    while True:
-        answer = input(
-            f"\nSend? Type yes to send, test to send one copy to {REPLY_TO},"
-            " or anything else to stop: "
-        ).strip()
-        if answer == "test":
-            send(message, to_send[0], to=REPLY_TO)
-            print(f"Sent a test to {REPLY_TO}.")
-        elif answer == "yes":
-            break
-        else:
-            print("Nothing was sent.")
-            return
-
-    failed = send_all(message, to_send, args.sent)
-    print(f"Sent to {len(to_send) - len(failed)} of {len(to_send)} invitations.")
-    if failed:
-        print("Failed (run it again to retry them):")
-        print("\n".join(f"  {problem}" for problem in failed))
+    if confirm(message, recipients[0]):
+        failed = send_all(message, recipients, args.sent)
+        print(f"Sent to {len(recipients) - len(failed)} of {len(recipients)}.")
+        if failed:
+            print("Failed (run it again to retry them):")
+            print("\n".join(f"  {failure}" for failure in failed))
 
 
 def read_message(path):
@@ -142,28 +123,49 @@ def read_message(path):
     return message, problems
 
 
-def recipients(items, audience, already_sent):
+def choose_recipients(invitations, audience, sent_codes):
     """
-    Return (to_send, skipped): the audience's invitations to send to, sorted by
-    label, and the number skipped for each reason.
+    Return (recipients, skipped): the invitations in the audience that can be sent
+    to, sorted by label, and the number skipped for each reason.
     """
-    to_send = []
-    skipped = {"without an email": 0, "opted out": 0, "already sent": 0}
-    for item in sorted(items, key=lambda item: item["label"]):
-        if not AUDIENCES[audience](item):
+    recipients = []
+    skipped = Counter()
+    for invitation in sorted(invitations, key=lambda invitation: invitation["label"]):
+        if not in_audience(invitation, audience):
             continue
-        if not item.get("email"):
-            skipped["without an email"] += 1
-        elif item.get("updates_opt_out"):
-            skipped["opted out"] += 1
-        elif item["invite_code"] in already_sent:
-            skipped["already sent"] += 1
+        reason = skip_reason(invitation, sent_codes)
+        if reason:
+            skipped[reason] += 1
         else:
-            to_send.append(item)
-    return to_send, skipped
+            recipients.append(invitation)
+    return recipients, skipped
 
 
-def sent(path):
+def in_audience(invitation, audience):
+    """
+    Whether an invitation is in the audience.
+    """
+    if audience == "accepted":
+        return any(guest["attending"] for guest in invitation["guests"])
+    if audience == "no-response":
+        return invitation["responded_at"] is None
+    return True
+
+
+def skip_reason(invitation, sent_codes):
+    """
+    Why an invitation can't be sent to, or None if it can.
+    """
+    if not invitation.get("email"):
+        return "no email"
+    if invitation.get("updates_opt_out"):
+        return "opted out"
+    if invitation["invite_code"] in sent_codes:
+        return "already sent"
+    return None
+
+
+def already_sent(path):
     """
     Return the invite codes recorded in a sent CSV.
     """
@@ -173,9 +175,42 @@ def sent(path):
         return {row["invite_code"] for row in csv.DictReader(file)}
 
 
-def send_all(message, items, sent_path):
+def show_plan(table_name, message, recipients, skipped):
     """
-    Send the update to each invitation, appending each success to the sent CSV.
+    Print who the update would be sent to, and how many were skipped and why.
+    """
+    print(
+        f'{table_name}: "{message["subject"]}" to {len(recipients)} invitations'
+        f' ({message["audience"]})'
+    )
+    reasons = ", ".join(f"{count} {reason}" for reason, count in skipped.items())
+    print(f"  skipped: {reasons or 'none'}")
+    if not recipients:
+        print("Nobody to send to.")
+
+
+def confirm(message, sample):
+    """
+    Prompt until the user sends or stops. "test" sends the sample invitation's
+    email to REPLY_TO and prompts again. Return whether to send.
+    """
+    while True:
+        answer = input(
+            f"\nSend? Type yes to send, test to send one copy to {REPLY_TO},"
+            " or anything else to stop: "
+        ).strip()
+        if answer == "yes":
+            return True
+        if answer != "test":
+            print("Nothing was sent.")
+            return False
+        send(message, sample, to=REPLY_TO)
+        print(f"Sent a test to {REPLY_TO}.")
+
+
+def send_all(message, recipients, sent_path):
+    """
+    Send the update to each recipient, appending each success to the sent CSV.
     Return a description of each failure.
     """
     failed = []
@@ -184,14 +219,18 @@ def send_all(message, items, sent_path):
         writer = csv.writer(file)
         if new_file:
             writer.writerow(["invite_code", "email", "sent_at"])
-        for item in items:
+        for invitation in recipients:
             try:
-                send(message, item)
+                send(message, invitation)
             except ClientError as error:
-                failed.append(f"{item['label']} <{item['email']}>: {error}")
+                failed.append(f"{invitation['label']} <{invitation['email']}>: {error}")
                 continue
             writer.writerow(
-                [item["invite_code"], item["email"], datetime.now(timezone.utc)]
+                [
+                    invitation["invite_code"],
+                    invitation["email"],
+                    datetime.now(timezone.utc),
+                ]
             )
             file.flush()
             # Stay within the SES sandbox limit of one email per second.
@@ -199,7 +238,7 @@ def send_all(message, items, sent_path):
     return failed
 
 
-def send(message, item, to=None):
+def send(message, invitation, to=None):
     """
     Send the update for an invitation to its email, or to `to` as a test.
 
@@ -208,7 +247,7 @@ def send(message, item, to=None):
     """
     ses.send_email(
         FromEmailAddress=SENDER,
-        Destination={"ToAddresses": [to or item["email"]]},
+        Destination={"ToAddresses": [to or invitation["email"]]},
         ReplyToAddresses=[REPLY_TO],
         FeedbackForwardingEmailAddress=REPLY_TO,
         Content={
@@ -218,22 +257,25 @@ def send(message, item, to=None):
                     "Charset": "UTF-8",
                 },
                 "Body": {
-                    "Text": {"Data": text(message, item), "Charset": "UTF-8"},
-                    "Html": {"Data": html(message, item), "Charset": "UTF-8"},
+                    "Text": {"Data": text(message, invitation), "Charset": "UTF-8"},
+                    "Html": {"Data": html(message, invitation), "Charset": "UTF-8"},
                 },
                 "Headers": [
-                    {"Name": "List-Unsubscribe", "Value": f"<{opt_out_url(item)}>"}
+                    {
+                        "Name": "List-Unsubscribe",
+                        "Value": f"<{opt_out_url(invitation)}>",
+                    }
                 ],
             }
         },
     )
 
 
-def html(message, item):
+def html(message, invitation):
     """
     Render the update as HTML for an invitation.
     """
-    greeting = f"Hi {card.ampersand(escape(item['label']))},"
+    greeting = f"Hi {card.ampersand(escape(invitation['label']))},"
     content = [card.paragraph(greeting, space=14)]
     content += [
         card.paragraph(escape(paragraph).replace("\n", "<br>"), space=14)
@@ -248,21 +290,21 @@ def html(message, item):
         title=card.ampersand(escape(message.get("heading", ""))),
         footer=(
             "You're getting this because you're invited to our wedding. "
-            f'<a href="{escape(opt_out_url(item))}" style="color: inherit;">'
+            f'<a href="{escape(opt_out_url(invitation))}" style="color: inherit;">'
             "Stop getting updates</a>"
         ),
     )
 
 
-def text(message, item):
+def text(message, invitation):
     """
     Render the update as plain text for an invitation.
     """
-    lines = [f"Hi {item['label']},", *message["paragraphs"]]
+    lines = [f"Hi {invitation['label']},", *message["paragraphs"]]
     if "link" in message:
         link_text, url = message["link"]
         lines.append(f"{link_text}: {site_url(url)}")
-    lines.append(f"--\nStop getting updates: {opt_out_url(item)}")
+    lines.append(f"--\nStop getting updates: {opt_out_url(invitation)}")
     return "\n\n".join(lines)
 
 
@@ -273,11 +315,11 @@ def site_url(url):
     return SITE_URL + url if url.startswith("/") else url
 
 
-def opt_out_url(item):
+def opt_out_url(invitation):
     """
     Return the URL of the invitation's opt-out page.
     """
-    return f"{SITE_URL}/opt-out?invite_code={item['invite_code']}"
+    return f"{SITE_URL}/opt-out?invite_code={invitation['invite_code']}"
 
 
 if __name__ == "__main__":
