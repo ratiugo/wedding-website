@@ -59,6 +59,10 @@ resource "aws_lambda_function" "notifier" {
       SENDER_NAME            = var.sender_name
       SENDER_EMAIL           = var.sender_email
       RECIPIENT_EMAILS       = join(",", var.recipient_emails)
+      GUEST_SENDER           = "${var.guest_sender_name} <${var.guest_sender_email}>"
+      REPLY_TO               = var.reply_to
+      SITE_URL               = "https://${var.domains[0]}"
+      INVITATIONS_TABLE      = aws_dynamodb_table.invitations.name
     }
   }
 

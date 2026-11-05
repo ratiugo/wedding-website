@@ -21,6 +21,11 @@ variable "recipient_emails" {
   type        = list(string)
 }
 
+variable "reply_to" {
+  description = "Where guest email replies go. Set in terraform.tfvars, which is gitignored."
+  type        = string
+}
+
 provider "aws" {
   region = "us-west-2"
 
@@ -62,6 +67,10 @@ module "wedding_website" {
   sender_name      = "Wedding RSVPs (dev)"
   sender_email     = "rsvp-dev@tessandcolton.com"
   recipient_emails = var.recipient_emails
+
+  guest_sender_name  = "Colton & Tess"
+  guest_sender_email = "hello@tessandcolton.com"
+  reply_to           = var.reply_to
 }
 
 output "deploy_role_arn" {

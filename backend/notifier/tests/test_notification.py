@@ -1,26 +1,12 @@
 """
-RSVP email tests: the subject, body, HTML and what's sent to SES.
+RSVP notification tests: the subject, body, HTML and what's sent to SES.
 """
 
 from unittest.mock import MagicMock
 
-import emails
-from emails import RsvpEmail
-
-
-def guest(name, attending, **fields):
-    """
-    A guest as it appears in an RSVP event.
-    """
-    return {
-        "id": 1,
-        "name": name,
-        "plus_one": False,
-        "child": False,
-        "attending": attending,
-        "dietary": "",
-        **fields,
-    }
+import card
+from notification import RsvpNotification
+from tests.factories import guest
 
 
 def invitation(guests, notes="", responded_at="2026-10-25T01:00:00+00:00"):
@@ -37,7 +23,7 @@ def invitation(guests, notes="", responded_at="2026-10-25T01:00:00+00:00"):
 
 
 def test_first_rsvp():
-    email = RsvpEmail(
+    email = RsvpNotification(
         {
             "invitation": invitation(
                 [guest("Jamie", True), guest("Plus-one", False, plus_one=True)]
@@ -64,14 +50,14 @@ def test_first_rsvp():
 
 
 def test_first_rsvp_with_nobody_coming_sends_regrets():
-    email = RsvpEmail(
+    email = RsvpNotification(
         {"invitation": invitation([guest("Jamie", False)]), "previous": None}
     )
     assert email.subject() == "Jamie just RSVP'd (sending their regrets)"
 
 
 def test_updated_rsvp_lists_what_changed():
-    email = RsvpEmail(
+    email = RsvpNotification(
         {
             "previous": invitation(
                 [guest("Jamie", True), guest("Plus-one", False, plus_one=True)]
@@ -110,7 +96,7 @@ def test_updated_rsvp_lists_what_changed():
 
 
 def test_guest_who_can_no_longer_come_is_a_change():
-    email = RsvpEmail(
+    email = RsvpNotification(
         {
             "previous": invitation([guest("Jamie", True)]),
             "invitation": invitation([guest("Jamie", False)]),
@@ -119,17 +105,14 @@ def test_guest_who_can_no_longer_come_is_a_change():
     assert email.changes() == ["Jamie can no longer come"]
 
 
-def test_resubmitting_the_same_answers_sends_no_email(monkeypatch):
-    monkeypatch.setattr(emails, "ses", MagicMock())
+def test_resubmitting_the_same_answers_has_no_changes():
     answers = invitation([guest("Jamie", True)])
-
-    RsvpEmail({"previous": answers, "invitation": answers}).send()
-
-    emails.ses.send_email.assert_not_called()
+    email = RsvpNotification({"previous": answers, "invitation": answers})
+    assert not email.changes()
 
 
 def test_html_shows_the_same_content_and_escapes_guest_text():
-    email = RsvpEmail(
+    email = RsvpNotification(
         {
             "invitation": invitation([guest("Jamie <b>", True)], notes="Can't wait <3"),
             "previous": None,
@@ -146,14 +129,14 @@ def test_html_shows_the_same_content_and_escapes_guest_text():
 
 
 def test_send_emails_every_recipient_as_html_and_plain_text(monkeypatch):
-    monkeypatch.setattr(emails, "ses", MagicMock())
-    email = RsvpEmail(
+    monkeypatch.setattr(card, "ses", MagicMock())
+    email = RsvpNotification(
         {"invitation": invitation([guest("Jamie", True)]), "previous": None}
     )
 
     email.send()
 
-    emails.ses.send_email.assert_called_once_with(
+    card.ses.send_email.assert_called_once_with(
         FromEmailAddress="Wedding RSVPs <rsvp@example.com>",
         Destination={"ToAddresses": ["colton@example.com", "tess@example.com"]},
         Content={

@@ -1,10 +1,15 @@
 """
-HTML building blocks for emails, styled to match the save-the-date card.
+Shared pieces of our emails: HTML building blocks styled to match the save-the-date
+card, guest details, and sending through SES.
 
 Styles are inline since most email clients strip <style> blocks. Clients that don't
-load web fonts (e.g. Gmail) fall back to Georgia and Arial. All arguments are HTML,
-so callers must escape untrusted text.
+load web fonts (e.g. Gmail) fall back to Georgia and Arial. Arguments are HTML unless
+a function says otherwise, so callers must escape untrusted text.
 """
+
+from html import escape
+
+import boto3
 
 SERIF = "'Cormorant Garamond', Georgia, serif"
 SANS = "Jost, 'Helvetica Neue', Arial, sans-serif"
@@ -13,6 +18,8 @@ MUTED = "#7a736b"
 SAGE = "#9aab8a"
 SAGE_DEEP = "#6c7d5e"
 LILAC_DEEP = "#9a84b5"
+
+ses = boto3.client("sesv2")
 
 PAGE = """<!doctype html>
 <html>
@@ -125,4 +132,50 @@ def ampersand(text):
     """
     return text.replace(
         "&amp;", f'<span style="font-style: italic; color: {LILAC_DEEP};">&amp;</span>'
+    )
+
+
+def section(title, lines):
+    """
+    Return a titled list, like "Coming (2)" and a line per guest. The title and
+    lines are plain text, and are escaped here.
+    """
+    return heading(escape(title)) + "".join(paragraph(escape(line)) for line in lines)
+
+
+def details(guest):
+    """
+    Return the extras for a guest who is coming, like " (child, dietary: Vegan)".
+    """
+    extras = ["child"] if guest["child"] else []
+    if guest["dietary"]:
+        extras.append(f"dietary: {guest['dietary']}")
+    return f" ({', '.join(extras)})" if extras else ""
+
+
+def send(sender, to, subject, text, html, *, reply_to=None, headers=()):
+    """
+    Send an email through SES, with plain-text and HTML bodies, to the list of
+    addresses `to`. Replies and bounce notifications go to reply_to, if given.
+    headers are extra headers, like [{"Name": ..., "Value": ...}].
+    """
+    content = {
+        "Subject": {"Data": subject, "Charset": "UTF-8"},
+        "Body": {
+            "Text": {"Data": text, "Charset": "UTF-8"},
+            "Html": {"Data": html, "Charset": "UTF-8"},
+        },
+    }
+    if headers:
+        content["Headers"] = list(headers)
+    reply = (
+        {"ReplyToAddresses": [reply_to], "FeedbackForwardingEmailAddress": reply_to}
+        if reply_to
+        else {}
+    )
+    ses.send_email(
+        FromEmailAddress=sender,
+        Destination={"ToAddresses": to},
+        Content={"Simple": content},
+        **reply,
     )
