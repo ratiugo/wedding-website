@@ -74,7 +74,7 @@ services:
     volumes:
       - ./scripts:/scripts:ro
       - ./notifier:/notifier:ro
-      # Writable for previews and sent records.
+      # Writable for previews.
       - ../updates:/updates
       - ~/.aws:/root/.aws
 

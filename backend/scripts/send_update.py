@@ -23,19 +23,21 @@ Headers:
 
 Invitations without an email, or with updates_opt_out set, are skipped. Before
 sending, the script lists the recipients, writes an HTML preview, and prompts:
-"yes" sends, and "test" sends one copy to REPLY_TO. Each send is appended to the
---sent CSV, and those invitations are skipped on later runs.
+"yes" sends, and "test" sends one copy to REPLY_TO.
+
+The update's name is the message file's name without .txt. After each send, it's
+added to the invitation's updates_sent set, and invitations that already have it
+are skipped, so a rerun only sends to the rest.
 """
 
 import argparse
-import csv
 import os
 import re
 import sys
 import time
 from collections import Counter
-from datetime import datetime, timezone
 from html import escape
+from pathlib import Path
 
 import boto3
 from botocore.exceptions import ClientError
@@ -59,7 +61,6 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Email an update to guests.")
     parser.add_argument("message", help="the message file")
-    parser.add_argument("--sent", required=True, help="CSV of invitations sent to")
     parser.add_argument("--preview", required=True, help="HTML file for a preview")
     args = parser.parse_args()
 
@@ -71,8 +72,7 @@ def main():
 
     table = boto3.resource("dynamodb").Table(os.environ["INVITATIONS_TABLE"])
     invitations = get_invitations(table)
-    sent_codes = get_sent_codes(args.sent)
-    recipients, skipped = get_recipients(invitations, message["audience"], sent_codes)
+    recipients, skipped = get_recipients(invitations, message)
     print_plan(table.name, message, recipients, skipped)
     if not recipients:
         return
@@ -82,7 +82,7 @@ def main():
     print(f"  preview (as {recipients[0]['label']} gets it): {args.preview}")
 
     if confirm_send(message, recipients[0]):
-        failed = send_to_recipients(message, recipients, args.sent)
+        failed = send_to_recipients(table, message, recipients)
         print(f"Sent to {len(recipients) - len(failed)} of {len(recipients)}.")
         if failed:
             print("Failed (run it again to retry them):")
@@ -93,13 +93,16 @@ def read_message(path):
     """
     Parse a message file. Return (message, problems).
 
-    message has "subject", "audience" and "paragraphs", plus "heading" and "link"
-    (a (text, url) tuple) when given.
+    message has "name" (the file's name without .txt), "subject", "audience" and
+    "paragraphs", plus "heading" and "link" (a (text, url) tuple) when given.
     """
     with open(path, encoding="utf-8") as file:
         headers, _, body = file.read().strip().partition("\n\n")
 
-    message = {"paragraphs": [p.strip() for p in re.split(r"\n\s*\n", body) if p]}
+    message = {
+        "name": Path(path).stem,
+        "paragraphs": [p.strip() for p in re.split(r"\n\s*\n", body) if p],
+    }
     problems = []
     for line in headers.splitlines():
         name, _, value = line.partition(":")
@@ -123,17 +126,17 @@ def read_message(path):
     return message, problems
 
 
-def get_recipients(invitations, audience, sent_codes):
+def get_recipients(invitations, message):
     """
-    Return (recipients, skipped): the invitations in the audience that can be sent
-    to, sorted by label, and the number skipped for each reason.
+    Return (recipients, skipped): the invitations in the message's audience that can
+    be sent to, sorted by label, and the number skipped for each reason.
     """
     recipients = []
     skipped = Counter()
     for invitation in sorted(invitations, key=lambda invitation: invitation["label"]):
-        if not in_audience(invitation, audience):
+        if not in_audience(invitation, message["audience"]):
             continue
-        reason = skip_reason(invitation, sent_codes)
+        reason = skip_reason(invitation, message["name"])
         if reason:
             skipped[reason] += 1
         else:
@@ -152,27 +155,17 @@ def in_audience(invitation, audience):
     return True
 
 
-def skip_reason(invitation, sent_codes):
+def skip_reason(invitation, update_name):
     """
-    Why an invitation can't be sent to, or None if it can.
+    Why an invitation can't be sent the update, or None if it can.
     """
     if not invitation.get("email"):
         return "no email"
     if invitation.get("updates_opt_out"):
         return "opted out"
-    if invitation["invite_code"] in sent_codes:
+    if update_name in invitation.get("updates_sent", set()):
         return "already sent"
     return None
-
-
-def get_sent_codes(path):
-    """
-    Return the invite codes recorded in a sent CSV.
-    """
-    if not os.path.exists(path):
-        return set()
-    with open(path, encoding="utf-8", newline="") as file:
-        return {row["invite_code"] for row in csv.DictReader(file)}
 
 
 def print_plan(table_name, message, recipients, skipped):
@@ -208,33 +201,25 @@ def confirm_send(message, sample):
         print(f"Sent a test to {REPLY_TO}.")
 
 
-def send_to_recipients(message, recipients, sent_path):
+def send_to_recipients(table, message, recipients):
     """
-    Send the update to each recipient, appending each success to the sent CSV.
-    Return a description of each failure.
+    Send the update to each recipient, adding it to the invitation's updates_sent
+    after each success. Return a description of each failure.
     """
     failed = []
-    new_file = not os.path.exists(sent_path)
-    with open(sent_path, "a", encoding="utf-8", newline="") as file:
-        writer = csv.writer(file)
-        if new_file:
-            writer.writerow(["invite_code", "email", "sent_at"])
-        for invitation in recipients:
-            try:
-                send(message, invitation)
-            except ClientError as error:
-                failed.append(f"{invitation['label']} <{invitation['email']}>: {error}")
-                continue
-            writer.writerow(
-                [
-                    invitation["invite_code"],
-                    invitation["email"],
-                    datetime.now(timezone.utc),
-                ]
-            )
-            file.flush()
-            # Stay within the SES sandbox limit of one email per second.
-            time.sleep(1)
+    for invitation in recipients:
+        try:
+            send(message, invitation)
+        except ClientError as error:
+            failed.append(f"{invitation['label']} <{invitation['email']}>: {error}")
+            continue
+        table.update_item(
+            Key={"invite_code": invitation["invite_code"]},
+            UpdateExpression="ADD updates_sent :name",
+            ExpressionAttributeValues={":name": {message["name"]}},
+        )
+        # Stay within the SES sandbox limit of one email per second.
+        time.sleep(1)
     return failed
 
 

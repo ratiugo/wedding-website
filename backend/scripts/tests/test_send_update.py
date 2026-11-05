@@ -24,6 +24,7 @@ def settings(monkeypatch):
 
 
 MESSAGE = {
+    "name": "itinerary",
     "subject": "The itinerary is up",
     "audience": "everyone",
     "link": ("See the itinerary", "/itinerary"),
@@ -75,6 +76,7 @@ def test_a_message_has_headers_then_paragraphs(tmp_path):
 
     assert not problems
     assert message == {
+        "name": "update",
         "subject": "Hi",
         "audience": "everyone",
         "link": ("Go", "/itinerary"),
@@ -106,7 +108,9 @@ def test_accepted_is_invitations_with_someone_coming():
     coming = invitation(attending=True)
     not_coming = invitation(attending=False)
 
-    to_send, _ = get_recipients([coming, not_coming], "accepted", set())
+    to_send, _ = get_recipients(
+        [coming, not_coming], {**MESSAGE, "audience": "accepted"}
+    )
 
     assert to_send == [coming]
 
@@ -115,29 +119,29 @@ def test_no_response_is_invitations_without_an_rsvp():
     answered = invitation(attending=False)
     unanswered = invitation()
 
-    to_send, _ = get_recipients([answered, unanswered], "no-response", set())
+    to_send, _ = get_recipients(
+        [answered, unanswered], {**MESSAGE, "audience": "no-response"}
+    )
 
     assert to_send == [unanswered]
 
 
 def test_invitations_without_an_email_are_skipped():
-    to_send, skipped = get_recipients([invitation(email=None)], "everyone", set())
+    to_send, skipped = get_recipients([invitation(email=None)], MESSAGE)
 
     assert not to_send
     assert skipped["no email"] == 1
 
 
 def test_opted_out_invitations_are_skipped():
-    to_send, skipped = get_recipients(
-        [invitation(updates_opt_out=True)], "everyone", set()
-    )
+    to_send, skipped = get_recipients([invitation(updates_opt_out=True)], MESSAGE)
 
     assert not to_send
     assert skipped["opted out"] == 1
 
 
 def test_invitations_already_sent_to_are_skipped():
-    to_send, skipped = get_recipients([invitation()], "everyone", {"CODE0001"})
+    to_send, skipped = get_recipients([invitation(updates_sent={"itinerary"})], MESSAGE)
 
     assert not to_send
     assert skipped["already sent"] == 1
@@ -203,15 +207,17 @@ def test_a_test_send_goes_to_the_given_address_marked_test():
     assert subject == "[Test] The itinerary is up"
 
 
-def test_only_successful_sends_are_recorded(tmp_path):
+def test_only_successful_sends_are_recorded_on_the_invitation():
     send_update.ses.send_email.side_effect = [
         None,
         ClientError({"Error": {"Code": "MessageRejected"}}, "SendEmail"),
     ]
-    sent_path = tmp_path / "update.sent.dev.csv"
+    table = MagicMock()
 
-    send_to_recipients(
-        MESSAGE, [invitation("CODE0001"), invitation("CODE0002")], sent_path
+    send_to_recipients(table, MESSAGE, [invitation("CODE0001"), invitation("CODE0002")])
+
+    table.update_item.assert_called_once_with(
+        Key={"invite_code": "CODE0001"},
+        UpdateExpression="ADD updates_sent :name",
+        ExpressionAttributeValues={":name": {"itinerary"}},
     )
-
-    assert send_update.get_sent_codes(sent_path) == {"CODE0001"}

@@ -53,7 +53,6 @@ send-update:
 		-e 'SENDER=$(UPDATE_SENDER)' \
 		-e REPLY_TO=$(REPLY_TO) \
 		send-update /updates/$(notdir $(FILE)) \
-		--sent /updates/$(basename $(notdir $(FILE))).sent.$(ENV).csv \
 		--preview /updates/$(basename $(notdir $(FILE))).preview.html
 
 # Run the backend tests (the database, S3, SES and Google Sheets are all mocked).
