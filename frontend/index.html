@@ -4,20 +4,123 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tess &amp; Colton</title>
-  <meta name="description" content="Tess and Colton are getting married.">
+  <meta name="description" content="Tess and Colton are getting married on September 11, 2027, in Qualicum, British Columbia.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wdth,wght@50..200,200..400&family=Poppins:wght@200;300&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="home">
+  <!-- Clear over the hero photo, then a white bar with our names once it's scrolled past (js/menu.js). -->
+  <header class="site-bar over-hero">
+    <a class="bar-name" href="/">Tess + Colton</a>
+    <button class="menu-button" type="button" aria-label="Menu" aria-expanded="false" aria-controls="menu">
+      <span></span><span></span>
+    </button>
+  </header>
+  <nav class="menu" id="menu" hidden>
+    <a href="/#wedding">Wedding</a>
+    <a href="/#travel">Travel</a>
+    <a href="/#weekend">Weekend</a>
+    <a href="/#registry">Registry</a>
+    <a href="/#faq">FAQ</a>
+    <a href="/rsvp">RSVP</a>
+  </nav>
+
+  <section class="hero">
+    <h1>Tess + Colton</h1>
+  </section>
+
   <main>
-    <section class="hero">
-      <p class="eyebrow">We're getting married</p>
-      <h1>Tess &amp; Colton</h1>
-      <p class="hero-details">September 11, 2027 &middot; Qualicum, BC</p>
+    <!-- A photo beside the details, then a blank tile beside an ink tile. -->
+    <section class="tiles" id="wedding">
+      <img class="tile tile-photo" src="images/wedding.jpg" alt="">
+      <div class="tile tile-text">
+        <h2>Wedding Day</h2>
+        <p class="date"><time datetime="2027-09-11">September 11, 2027</time></p>
+        <p>Ceremony time to come</p>
+        <p>Venue to come</p>
+        <p>Qualicum, British Columbia</p>
+        <p>Dress code to come</p>
+      </div>
+      <div class="tile tile-blank" aria-hidden="true"></div>
+      <div class="tile tile-ink" aria-hidden="true"></div>
+    </section>
+
+    <!-- The same, mirrored. -->
+    <section class="tiles mirrored" id="travel">
+      <div class="tile tile-text">
+        <h2>Travel</h2>
+        <p class="date">Vancouver Island</p>
+        <p>Qualicum is on the east coast of the island,<br>about halfway between Nanaimo and Courtenay.</p>
+      </div>
+      <img class="tile tile-photo" src="images/travel.jpg" alt="">
+      <div class="tile tile-ink" aria-hidden="true"></div>
+      <div class="tile tile-blank" aria-hidden="true"></div>
+    </section>
+
+    <section class="section">
+      <div class="columns">
+        <article>
+          <h3>By Air</h3>
+          <p>Nanaimo Airport (YCD) and Comox Valley Airport (YQQ) are each under an hour's drive away, with flights from Vancouver and Calgary.</p>
+          <a class="button" href="https://www.google.com/travel/flights" target="_blank" rel="noopener">Find a Flight</a>
+        </article>
+        <article>
+          <h3>By Ferry</h3>
+          <p>From Vancouver, BC Ferries sails from Horseshoe Bay to Nanaimo, then it's about 45 minutes' drive north.</p>
+          <a class="button" href="https://www.bcferries.com" target="_blank" rel="noopener">BC Ferries</a>
+        </article>
+      </div>
+      <h3 class="subhead">Where to Stay</h3>
+      <p>Hotel details to come.</p>
+    </section>
+
+    <div class="wash" aria-hidden="true"></div>
+
+    <section class="section" id="weekend">
+      <h2>The Weekend</h2>
+      <ul class="schedule">
+        <li>
+          <h3>Saturday</h3>
+          <p class="when">September 11</p>
+          <p>Ceremony and reception</p>
+        </li>
+      </ul>
+      <p class="note">More of the weekend to come</p>
+    </section>
+
+    <div class="wash" aria-hidden="true"></div>
+
+    <section class="section" id="registry">
+      <h2>Registry</h2>
+      <p class="lead">Having you there is the best gift of all.</p>
+      <p>Registry details to come.</p>
+    </section>
+
+    <div class="wash" aria-hidden="true"></div>
+
+    <section class="section" id="faq">
+      <h2>FAQ</h2>
+      <dl class="faq">
+        <dt>Can I bring a guest?</dt>
+        <dd>Your invitation lists everyone we've saved a seat for, including any plus-one.</dd>
+        <dt>How do I RSVP?</dt>
+        <dd>Enter the code from your invitation on the <a href="/rsvp">RSVP page</a>. You can change your answers any time.</dd>
+        <dt>What if I have a question?</dt>
+        <dd>Reply to any of our emails and it will reach us.</dd>
+      </dl>
+    </section>
+
+    <section class="section rsvp-callout" id="rsvp">
+      <h2>RSVP</h2>
+      <p class="lead">We hope you can join us.</p>
       <a class="button" href="/rsvp">RSVP</a>
     </section>
   </main>
+
+  <footer class="site-footer">Tess + Colton &middot; 09.11.27</footer>
+
+  <script src="js/menu.js"></script>
 </body>
 </html>

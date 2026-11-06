@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice">
+  <!-- Ink bleeding across paper, for a tile beside a photo. One noise field is cut at
+       three levels, so each pale wash holds a mid-grey pool with a dark core, like
+       watercolor drying. Fine veins of turbulence run through it. -->
+  <defs>
+    <filter id="ink" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0045 0.007" numOctaves="6" seed="33" result="noise" />
+      <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="2" seed="5" result="grain" />
+      <feDisplacementMap in="noise" in2="grain" scale="26" xChannelSelector="R" yChannelSelector="G" result="bled" />
+
+      <feColorMatrix in="bled" type="matrix" result="wash"
+        values="0 0 0 0 0.62  0 0 0 0 0.61  0 0 0 0 0.59  3.2 0 0 0 -1.3" />
+      <feColorMatrix in="bled" type="matrix" result="pool"
+        values="0 0 0 0 0.33  0 0 0 0 0.32  0 0 0 0 0.31  5 0 0 0 -2.55" />
+      <feColorMatrix in="bled" type="matrix" result="core"
+        values="0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0 0.1  7 0 0 0 -3.95" />
+      <feGaussianBlur in="core" stdDeviation="1.5" result="soft-core" />
+
+      <feTurbulence type="turbulence" baseFrequency="0.006 0.012" numOctaves="4" seed="9" result="veins-noise" />
+      <feColorMatrix in="veins-noise" type="matrix" result="veins"
+        values="0 0 0 0 0.25  0 0 0 0 0.24  0 0 0 0 0.23  -14 0 0 0 1.05" />
+      <feComposite in="veins" in2="wash" operator="in" result="veins-in-wash" />
+
+      <feMerge>
+        <feMergeNode in="wash" />
+        <feMergeNode in="pool" />
+        <feMergeNode in="veins-in-wash" />
+        <feMergeNode in="soft-core" />
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="800" height="800" fill="#f5f3ef" />
+  <!-- Drawn past the edges, since the bleed leaves a ragged strip along them. -->
+  <rect x="-60" y="-60" width="920" height="920" filter="url(#ink)" />
+</svg>
