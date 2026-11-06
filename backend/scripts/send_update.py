@@ -250,7 +250,7 @@ def render_html(message, invitation):
     """
     Render the update as HTML for an invitation.
     """
-    greeting = f"Hi {card.ampersand(escape(invitation['label']))},"
+    greeting = f"Hi {escape(invitation['label'])},"
     content = [card.paragraph(greeting, space=14)]
     content += [
         card.paragraph(escape(paragraph).replace("\n", "<br>"), space=14)
@@ -261,13 +261,13 @@ def render_html(message, invitation):
         content.append(card.button(escape(link_text), escape(full_url(url))))
     return card.card(
         "\n".join(content),
-        eyebrow=card.ampersand("Tess &amp; Colton"),
-        title=card.ampersand(escape(message.get("heading", ""))),
+        title=escape(message.get("heading", "")),
         footer=(
             "You're getting this because you're invited to our wedding. "
             f'<a href="{escape(opt_out_url(invitation))}" style="color: inherit;">'
             "Stop getting updates</a>"
         ),
+        photo=full_url("/images/email.jpg"),
     )
 
 

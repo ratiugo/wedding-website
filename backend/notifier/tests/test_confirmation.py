@@ -69,6 +69,11 @@ def test_a_link_in_a_guests_note_isnt_a_real_link():
     assert note not in html
 
 
+def test_the_html_email_uses_the_photo_from_the_site():
+    html = confirmation.html(INVITATION)
+    assert "https://example.com/images/email.jpg" in html
+
+
 def test_it_goes_to_the_invitations_email():
     send_confirmation(EVENT)
     assert sent_email()["Destination"] == {"ToAddresses": ["jamie@example.com"]}

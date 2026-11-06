@@ -6,13 +6,24 @@
   <title>RSVP &middot; Tess &amp; Colton</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wdth,wght@50..200,200..400&family=Poppins:wght@200;300&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header class="site-header">
-    <a class="logo" href="/">T &amp; C</a>
+  <header class="site-bar">
+    <a class="bar-name" href="/">Tess + Colton</a>
+    <button class="menu-button" type="button" aria-label="Menu" aria-expanded="false" aria-controls="menu">
+      <span></span><span></span>
+    </button>
   </header>
+  <nav class="menu" id="menu" hidden>
+    <a href="/#wedding">Wedding</a>
+    <a href="/#travel">Travel</a>
+    <a href="/#weekend">Weekend</a>
+    <a href="/#registry">Registry</a>
+    <a href="/#faq">FAQ</a>
+    <a href="/rsvp">RSVP</a>
+  </nav>
 
   <main class="section rsvp">
     <h2>RSVP</h2>
@@ -75,6 +86,7 @@
     </fieldset>
   </template>
 
+  <script src="js/menu.js"></script>
   <script src="js/rsvp.js"></script>
 </body>
 </html>
