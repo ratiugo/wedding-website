@@ -167,6 +167,11 @@ def test_the_email_greets_the_invitation():
     assert "Hi Sam &lt;Alex&gt;," in html
 
 
+def test_the_email_uses_the_photo_from_the_site():
+    html = send_update.render_html(MESSAGE, invitation())
+    assert "https://example.com/images/email.jpg" in html
+
+
 def test_a_site_link_gets_the_site_address():
     assert send_update.full_url("/itinerary") == "https://example.com/itinerary"
 

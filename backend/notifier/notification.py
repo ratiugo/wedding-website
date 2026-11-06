@@ -112,9 +112,11 @@ class RsvpNotification:
         guests = len(self.invitation["guests"])
         return card.card(
             "".join(sections),
-            eyebrow="Updated RSVP" if self.previous else "New RSVP",
-            title=card.ampersand(escape(self.label)),
-            subtitle=f"{len(self.coming)} of {guests} coming",
+            title=escape(self.label),
+            subtitle=(
+                f"{'Updated' if self.previous else 'New'} RSVP"
+                f" · {len(self.coming)} of {guests} coming"
+            ),
             footer=escape(
                 f"Invite code {self.invitation['invite_code']} · "
                 f"Responded {self.responded()}"

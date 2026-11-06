@@ -65,7 +65,7 @@ def html(invitation):
     escaped.
     """
     content = [
-        card.paragraph(card.ampersand(escape(f"Hi {invitation['label']},"))),
+        card.paragraph(escape(f"Hi {invitation['label']},")),
         card.section("Your RSVP", answers(invitation)),
     ]
     if invitation["notes"]:
@@ -73,9 +73,9 @@ def html(invitation):
     content.append(card.button("Change your RSVP", escape(rsvp_url(invitation))))
     return card.card(
         "\n".join(content),
-        eyebrow=card.ampersand("Tess &amp; Colton"),
         title="Thanks for your RSVP!",
         footer=FOOTER,
+        photo=f"{SITE_URL}/images/email.jpg",
     )
 
 
