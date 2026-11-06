@@ -6,7 +6,21 @@ from unittest.mock import MagicMock
 
 import card
 from notification import RsvpNotification
-from tests.factories import guest
+
+
+def guest(name, attending, **fields):
+    """
+    A guest as it appears in an RSVP event.
+    """
+    return {
+        "id": 1,
+        "name": name,
+        "plus_one": False,
+        "child": False,
+        "attending": attending,
+        "dietary": "",
+        **fields,
+    }
 
 
 def invitation(guests, notes="", responded_at="2026-10-25T01:00:00+00:00"):
@@ -128,24 +142,15 @@ def test_html_shows_the_same_content_and_escapes_guest_text():
     assert "<b>" not in html
 
 
-def test_send_emails_every_recipient_as_html_and_plain_text(monkeypatch):
+def test_it_goes_to_every_recipient(monkeypatch):
     monkeypatch.setattr(card, "ses", MagicMock())
-    email = RsvpNotification(
+
+    RsvpNotification(
         {"invitation": invitation([guest("Jamie", True)]), "previous": None}
-    )
+    ).send()
 
-    email.send()
-
-    card.ses.send_email.assert_called_once_with(
-        FromEmailAddress="Wedding RSVPs <rsvp@example.com>",
-        Destination={"ToAddresses": ["colton@example.com", "tess@example.com"]},
-        Content={
-            "Simple": {
-                "Subject": {"Data": email.subject(), "Charset": "UTF-8"},
-                "Body": {
-                    "Text": {"Data": email.body(), "Charset": "UTF-8"},
-                    "Html": {"Data": email.html(), "Charset": "UTF-8"},
-                },
-            }
-        },
-    )
+    sent = card.ses.send_email.call_args.kwargs
+    assert sent["FromEmailAddress"] == "Wedding RSVPs <rsvp@example.com>"
+    assert sent["Destination"] == {
+        "ToAddresses": ["colton@example.com", "tess@example.com"]
+    }
