@@ -15,6 +15,7 @@ from html import escape
 from zoneinfo import ZoneInfo
 
 import card
+import mail
 
 TIMEZONE = ZoneInfo("America/Vancouver")
 SENDER_NAME = os.environ["SENDER_NAME"]
@@ -39,12 +40,10 @@ class RsvpNotification:
         """
         Send the email.
         """
-        card.send(
+        mail.send(
             formataddr((SENDER_NAME, SENDER_EMAIL)),
             RECIPIENT_EMAILS,
-            self.subject(),
-            self.body(),
-            self.html(),
+            mail.content(self.subject(), self.body(), self.html()),
         )
 
     def subject(self):

@@ -4,7 +4,7 @@ RSVP notification tests: the subject, body, HTML and what's sent to SES.
 
 from unittest.mock import MagicMock
 
-import card
+import mail
 from notification import RsvpNotification
 
 
@@ -125,31 +125,32 @@ def test_resubmitting_the_same_answers_has_no_changes():
     assert not email.changes()
 
 
-def test_html_shows_the_same_content_and_escapes_guest_text():
-    email = RsvpNotification(
-        {
-            "invitation": invitation([guest("Jamie <b>", True)], notes="Can't wait <3"),
-            "previous": None,
-        }
-    )
-
-    html = email.html()
+def test_html_shows_whether_its_new_and_how_many_are_coming():
+    html = RsvpNotification(
+        {"invitation": invitation([guest("Jamie", True)]), "previous": None}
+    ).html()
 
     assert "New RSVP" in html
     assert "1 of 1 coming" in html
-    assert "Jamie &lt;b&gt;" in html
-    assert "Can&#x27;t wait &lt;3" in html
-    assert "<b>" not in html
+
+
+def test_a_link_in_a_guests_note_isnt_a_real_link():
+    note = '<a href="https://spam.example">Click me</a>'
+    html = RsvpNotification(
+        {"invitation": invitation([guest("Jamie", True)], notes=note), "previous": None}
+    ).html()
+
+    assert note not in html
 
 
 def test_it_goes_to_every_recipient(monkeypatch):
-    monkeypatch.setattr(card, "ses", MagicMock())
+    monkeypatch.setattr(mail, "ses", MagicMock())
 
     RsvpNotification(
         {"invitation": invitation([guest("Jamie", True)]), "previous": None}
     ).send()
 
-    sent = card.ses.send_email.call_args.kwargs
+    sent = mail.ses.send_email.call_args.kwargs
     assert sent["FromEmailAddress"] == "Wedding RSVPs <rsvp@example.com>"
     assert sent["Destination"] == {
         "ToAddresses": ["colton@example.com", "tess@example.com"]

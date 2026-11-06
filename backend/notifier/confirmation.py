@@ -12,6 +12,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 import card
+import mail
 
 GUEST_SENDER = os.environ["GUEST_SENDER"]
 REPLY_TO = os.environ["REPLY_TO"]
@@ -34,12 +35,10 @@ def send_confirmation(event):
         item = invitations.get_item(Key={"invite_code": invitation["invite_code"]})
         email = item.get("Item", {}).get("email")
         if email:
-            card.send(
+            mail.send(
                 GUEST_SENDER,
                 [email],
-                "Your RSVP",
-                text(invitation),
-                html(invitation),
+                mail.content("Your RSVP", text(invitation), html(invitation)),
                 reply_to=REPLY_TO,
             )
     except ClientError:

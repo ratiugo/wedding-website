@@ -7,8 +7,6 @@ good-names-rgxs = ["^do_[A-Z]+$"]
 
 [tool.pylint.design]
 min-public-methods = 1
-# Enough for card.send's sender, recipients, subject, bodies and options.
-max-args = 7
 
 [tool.pylint.format]
 max-line-length = 88

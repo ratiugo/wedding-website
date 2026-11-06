@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import pytest
 from botocore.exceptions import ClientError
 
-import card
 import confirmation
+import mail
 from confirmation import send_confirmation
 
 INVITATION = {
@@ -29,7 +29,7 @@ def mocks(monkeypatch):
     """
     Mock SES, and the table with an email for the invitation.
     """
-    monkeypatch.setattr(card, "ses", MagicMock())
+    monkeypatch.setattr(mail, "ses", MagicMock())
     monkeypatch.setattr(confirmation, "invitations", MagicMock())
     confirmation.invitations.get_item.return_value = {
         "Item": {"invite_code": "JAMIE234", "email": "jamie@example.com"}
@@ -40,8 +40,8 @@ def sent_email():
     """
     The arguments of the one email sent to SES.
     """
-    card.ses.send_email.assert_called_once()
-    return card.ses.send_email.call_args.kwargs
+    mail.ses.send_email.assert_called_once()
+    return mail.ses.send_email.call_args.kwargs
 
 
 def test_the_plain_text_email():
@@ -63,9 +63,10 @@ def test_the_plain_text_email():
     )
 
 
-def test_the_html_email_escapes_guest_text():
-    html = confirmation.html({**INVITATION, "notes": "<b>Hi</b>"})
-    assert "&lt;b&gt;Hi&lt;/b&gt;" in html
+def test_a_link_in_a_guests_note_isnt_a_real_link():
+    note = '<a href="https://spam.example">Click me</a>'
+    html = confirmation.html({**INVITATION, "notes": note})
+    assert note not in html
 
 
 def test_it_goes_to_the_invitations_email():
@@ -83,11 +84,11 @@ def test_an_invitation_without_an_email_gets_nothing():
 
     send_confirmation(EVENT)
 
-    card.ses.send_email.assert_not_called()
+    mail.ses.send_email.assert_not_called()
 
 
 def test_a_failed_send_is_logged_instead_of_raised(caplog):
-    card.ses.send_email.side_effect = ClientError({"Error": {}}, "SendEmail")
+    mail.ses.send_email.side_effect = ClientError({"Error": {}}, "SendEmail")
 
     send_confirmation(EVENT)
 

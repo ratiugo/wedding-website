@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from botocore.exceptions import ClientError
 
-import card
+import mail
 import send_update
 from send_update import (
     get_recipients,
@@ -25,7 +25,7 @@ def settings(monkeypatch):
     monkeypatch.setattr(send_update, "SITE_URL", "https://example.com")
     monkeypatch.setattr(send_update, "SENDER", "Us <hello@example.com>")
     monkeypatch.setattr(send_update, "REPLY_TO", "us@example.com")
-    monkeypatch.setattr(card, "ses", MagicMock())
+    monkeypatch.setattr(mail, "ses", MagicMock())
     monkeypatch.setattr(send_update.time, "sleep", lambda _: None)
 
 
@@ -57,8 +57,8 @@ def sent_email():
     """
     The arguments of the one email sent to SES.
     """
-    card.ses.send_email.assert_called_once()
-    return card.ses.send_email.call_args.kwargs
+    mail.ses.send_email.assert_called_once()
+    return mail.ses.send_email.call_args.kwargs
 
 
 # Parsing message files
@@ -220,7 +220,7 @@ def test_a_test_send_goes_to_the_given_address_marked_test():
 
 
 def test_only_successful_sends_are_recorded_on_the_invitation():
-    card.ses.send_email.side_effect = [
+    mail.ses.send_email.side_effect = [
         None,
         ClientError({"Error": {"Code": "MessageRejected"}}, "SendEmail"),
     ]

@@ -43,6 +43,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 import card
+import mail
 from load_guests import get_invitations
 
 SITE_URL = os.environ["SITE_URL"]
@@ -236,15 +237,13 @@ def send_email(message, invitation, to=None):
     Replies and bounce notifications go to REPLY_TO. The List-Unsubscribe header
     points to the invitation's opt-out page.
     """
-    card.send(
-        SENDER,
-        [to or invitation["email"]],
+    email_content = mail.content(
         ("[Test] " if to else "") + message["subject"],
         render_text(message, invitation),
         render_html(message, invitation),
-        reply_to=REPLY_TO,
         headers=[{"Name": "List-Unsubscribe", "Value": f"<{opt_out_url(invitation)}>"}],
     )
+    mail.send(SENDER, [to or invitation["email"]], email_content, reply_to=REPLY_TO)
 
 
 def render_html(message, invitation):
