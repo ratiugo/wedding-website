@@ -171,9 +171,8 @@ resource "aws_iam_role_policy" "notifier" {
         Resource = aws_dynamodb_table.invitations.arn
       },
       {
-        # SES checks this against the sender's and (in the sandbox) each recipient's
-        # identity, so it's limited by the From address instead: each sender's email,
-        # alone or after a display name ("Wedding RSVPs <rsvp@...>").
+        # Limited by From address, since SES checks resources against recipient
+        # identities too. Each sender can appear alone or after a display name.
         Effect   = "Allow"
         Action   = "ses:SendEmail"
         Resource = "*"
