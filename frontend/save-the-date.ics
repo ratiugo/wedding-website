@@ -1,0 +1,15 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Tess and Colton//Wedding//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:wedding-20270911@tessandcolton.com
+DTSTAMP:20261106T000000Z
+DTSTART;VALUE=DATE:20270911
+DTEND;VALUE=DATE:20270912
+SUMMARY:Tess + Colton's wedding
+LOCATION:Qualicum\, British Columbia
+DESCRIPTION:Formal invitation to follow. https://tessandcolton.com
+URL:https://tessandcolton.com
+END:VEVENT
+END:VCALENDAR

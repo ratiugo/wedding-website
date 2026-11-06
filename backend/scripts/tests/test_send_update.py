@@ -10,8 +10,10 @@ from botocore.exceptions import ClientError
 import mail
 import send_update
 from send_update import (
+    confirm_send,
     get_recipients,
     parse_message,
+    sample_invitation,
     send_to_recipients,
     validate_message,
 )
@@ -33,7 +35,7 @@ MESSAGE = {
     "name": "itinerary",
     "subject": "The itinerary is up",
     "audience": "everyone",
-    "link": ("See the itinerary", "/itinerary"),
+    "links": [("See the itinerary", "/itinerary")],
     "paragraphs": ["We've added the schedule."],
 }
 
@@ -67,7 +69,7 @@ def sent_email():
 def test_a_message_file_is_headers_then_paragraphs(tmp_path):
     path = tmp_path / "update.txt"
     path.write_text(
-        "Subject: Hi\nAudience: everyone\nLink: Go | /itinerary\n\n"
+        "Subject: Hi\nAudience: everyone\nLink: Go | /itinerary\nLink: Map | /map\n\n"
         "One.\nStill one.\n\nTwo.\n",
         encoding="utf-8",
     )
@@ -76,7 +78,7 @@ def test_a_message_file_is_headers_then_paragraphs(tmp_path):
         "name": "update",
         "subject": "Hi",
         "audience": "everyone",
-        "link": ("Go", "/itinerary"),
+        "links": [("Go", "/itinerary"), ("Map", "/map")],
         "paragraphs": ["One.\nStill one.", "Two."],
     }
 
@@ -89,7 +91,7 @@ def test_a_complete_message_is_valid():
 
 
 def test_a_message_needs_a_subject_and_audience():
-    errors = validate_message({"name": "update", "paragraphs": ["Hello."]})
+    errors = validate_message({"name": "update", "paragraphs": ["Hello."], "links": []})
     assert errors == ["Missing header: Subject", "Missing header: Audience"]
 
 
@@ -104,7 +106,7 @@ def test_a_misspelled_header_is_an_error():
 
 
 def test_a_link_needs_text_and_a_url():
-    errors = validate_message({**MESSAGE, "link": ("", "/itinerary")})
+    errors = validate_message({**MESSAGE, "links": [("", "/itinerary")]})
     assert errors == ["Link should be like: See the itinerary | /itinerary"]
 
 
@@ -157,6 +159,33 @@ def test_invitations_already_sent_to_are_skipped():
 
     assert not to_send
     assert skipped["already sent"] == 1
+
+
+def test_the_sample_is_the_first_recipient():
+    recipients = [invitation(label="Ana"), invitation(label="Ben")]
+    assert sample_invitation(recipients, MESSAGE, recipients) == recipients[0]
+
+
+def test_the_sample_is_from_the_audience_when_everyone_already_has_it():
+    sent = invitation(updates_sent={"itinerary"})
+    assert sample_invitation([sent], MESSAGE, []) == sent
+
+
+# Confirming
+
+
+def test_yes_sends_nothing_when_nobody_is_left(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "yes")
+    assert not confirm_send(MESSAGE, invitation(), can_send=False)
+
+
+def test_test_sends_a_copy_to_reply_to(monkeypatch):
+    answers = iter(["test", "stop"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+
+    confirm_send(MESSAGE, invitation(), can_send=False)
+
+    assert sent_email()["Destination"] == {"ToAddresses": ["us@example.com"]}
 
 
 # The email
