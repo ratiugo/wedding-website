@@ -162,8 +162,8 @@ def test_invitations_already_sent_to_are_skipped():
 
 
 def test_the_sample_is_the_first_recipient():
-    first, second = invitation(label="Ana"), invitation(label="Ben")
-    assert sample_invitation([second, first], MESSAGE, [first, second]) == first
+    recipients = [invitation(label="Ana"), invitation(label="Ben")]
+    assert sample_invitation(recipients, MESSAGE, recipients) == recipients[0]
 
 
 def test_the_sample_is_from_the_audience_when_everyone_already_has_it():
