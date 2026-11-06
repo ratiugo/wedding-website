@@ -19,11 +19,12 @@ Headers:
               RSVP yet) or everyone.
     Heading   Optional title.
     Link      Optional button, as "text | url". A url starting with / is relative to
-              SITE_URL.
+              SITE_URL. Repeat it for more than one button.
 
 Invitations without an email, or with updates_opt_out set, are skipped. Before
 sending, the script lists the recipients, writes an HTML preview, and prompts:
-"yes" sends, and "test" sends one copy to REPLY_TO.
+"yes" sends, and "test" sends one copy to REPLY_TO. A test works even when everyone
+already has the update.
 
 The update's name is the message file's name without .txt. After each send, it's
 added to the invitation's updates_sent set, and invitations that already have it
@@ -51,7 +52,7 @@ SENDER = os.environ["SENDER"]
 REPLY_TO = os.environ["REPLY_TO"]
 
 AUDIENCES = ("accepted", "no-response", "everyone")
-HEADERS = ("subject", "audience", "heading", "link")
+HEADERS = ("subject", "audience", "heading")
 
 
 def main():
@@ -74,14 +75,15 @@ def main():
     invitations = get_invitations(table)
     recipients, skipped = get_recipients(invitations, message)
     print_plan(table.name, message, recipients, skipped)
-    if not recipients:
+    sample = sample_invitation(invitations, message, recipients)
+    if not sample:
         return
 
     with open(args.preview, "w", encoding="utf-8") as file:
-        file.write(render_html(message, recipients[0]))
-    print(f"  preview (as {recipients[0]['label']} gets it): {args.preview}")
+        file.write(render_html(message, sample))
+    print(f"  preview (as {sample['label']} gets it): {args.preview}")
 
-    if confirm_send(message, recipients[0]):
+    if confirm_send(message, sample, can_send=bool(recipients)):
         failed = send_to_recipients(table, message, recipients)
         print(f"Sent to {len(recipients) - len(failed)} of {len(recipients)}.")
         if failed:
@@ -93,8 +95,9 @@ def parse_message(path):
     """
     Parse a message file into a dict.
 
-    The dict has "name" (the file's name without .txt), "paragraphs", and each header
-    by its lowercase name. "link" is split into a (text, url) tuple.
+    The dict has "name" (the file's name without .txt), "paragraphs", "links" (a
+    (text, url) tuple for each Link header), and each other header by its lowercase
+    name.
     """
     with open(path, encoding="utf-8") as file:
         headers, _, body = file.read().strip().partition("\n\n")
@@ -102,13 +105,16 @@ def parse_message(path):
     message = {
         "name": Path(path).stem,
         "paragraphs": [p.strip() for p in re.split(r"\n\s*\n", body) if p],
+        "links": [],
     }
     for line in headers.splitlines():
         name, _, value = line.partition(":")
-        message[name.strip().lower()] = value.strip()
-    if "link" in message:
-        link_text, _, url = message["link"].partition("|")
-        message["link"] = (link_text.strip(), url.strip())
+        name, value = name.strip().lower(), value.strip()
+        if name == "link":
+            link_text, _, url = value.partition("|")
+            message["links"].append((link_text.strip(), url.strip()))
+        else:
+            message[name] = value
     return message
 
 
@@ -119,14 +125,14 @@ def validate_message(message):
     errors = [
         f"Unknown header: {name}"
         for name in message
-        if name not in HEADERS and name not in ("name", "paragraphs")
+        if name not in HEADERS and name not in ("name", "paragraphs", "links")
     ]
     for header in ("subject", "audience"):
         if not message.get(header):
             errors.append(f"Missing header: {header.capitalize()}")
     if message.get("audience") and message["audience"] not in AUDIENCES:
         errors.append(f"Audience should be one of: {', '.join(AUDIENCES)}")
-    if "link" in message and not all(message["link"]):
+    if not all(all(link) for link in message["links"]):
         errors.append("Link should be like: See the itinerary | /itinerary")
     if not message["paragraphs"]:
         errors.append("The message is empty")
@@ -175,6 +181,22 @@ def skip_reason(invitation, update_name):
     return None
 
 
+def sample_invitation(invitations, message, recipients):
+    """
+    The invitation the preview and test sends are written for: the first recipient,
+    or the first invitation in the audience if everyone already has the update (so
+    it can still be tested). None if nobody is in the audience.
+    """
+    if recipients:
+        return recipients[0]
+    audience = [
+        invitation
+        for invitation in invitations
+        if in_audience(invitation, message["audience"])
+    ]
+    return min(audience, key=lambda invitation: invitation["label"], default=None)
+
+
 def print_plan(table_name, message, recipients, skipped):
     """
     Print who the update would be sent to, and how many were skipped and why.
@@ -189,22 +211,22 @@ def print_plan(table_name, message, recipients, skipped):
         print("Nobody to send to.")
 
 
-def confirm_send(message, preview_invitation):
+def confirm_send(message, sample, can_send):
     """
-    Prompt until the user sends or stops. "test" sends preview_invitation's email to
-    REPLY_TO and prompts again. Return whether to send.
+    Prompt until the user sends or stops. "test" sends sample's email to REPLY_TO and
+    prompts again, and "yes" is only offered if can_send. Return whether to send.
     """
+    options = "Type yes to send, test" if can_send else "Type test"
     while True:
         answer = input(
-            f"\nSend? Type yes to send, test to send one copy to {REPLY_TO},"
-            " or anything else to stop: "
+            f"\n{options} to send one copy to {REPLY_TO}, or anything else to stop: "
         ).strip()
-        if answer == "yes":
+        if answer == "yes" and can_send:
             return True
         if answer != "test":
             print("Nothing was sent.")
             return False
-        send_email(message, preview_invitation, to=REPLY_TO)
+        send_email(message, sample, to=REPLY_TO)
         print(f"Sent a test to {REPLY_TO}.")
 
 
@@ -256,9 +278,10 @@ def render_html(message, invitation):
         card.paragraph(escape(paragraph).replace("\n", "<br>"), space=14)
         for paragraph in message["paragraphs"]
     ]
-    if "link" in message:
-        link_text, url = message["link"]
-        content.append(card.button(escape(link_text), escape(full_url(url))))
+    content += [
+        card.button(escape(link_text), escape(full_url(url)))
+        for link_text, url in message["links"]
+    ]
     return card.card(
         "\n".join(content),
         title=escape(message.get("heading", "")),
@@ -276,9 +299,7 @@ def render_text(message, invitation):
     Render the update as plain text for an invitation.
     """
     lines = [f"Hi {invitation['label']},", *message["paragraphs"]]
-    if "link" in message:
-        link_text, url = message["link"]
-        lines.append(f"{link_text}: {full_url(url)}")
+    lines += [f"{link_text}: {full_url(url)}" for link_text, url in message["links"]]
     lines.append(f"--\nStop getting updates: {opt_out_url(invitation)}")
     return "\n\n".join(lines)
 
