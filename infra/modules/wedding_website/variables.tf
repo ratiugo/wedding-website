@@ -33,6 +33,21 @@ variable "recipient_emails" {
   type        = list(string)
 }
 
+variable "guest_sender_name" {
+  description = "The name guest emails show as coming from, e.g. \"Colton & Tess\"."
+  type        = string
+}
+
+variable "guest_sender_email" {
+  description = "The address guest emails come from. Any address @tessandcolton.com works."
+  type        = string
+}
+
+variable "reply_to" {
+  description = "Where replies and bounce notifications for guest emails go."
+  type        = string
+}
+
 variable "alarm_email" {
   description = "Where to email when a Lambda fails. No alarms if null."
   type        = string

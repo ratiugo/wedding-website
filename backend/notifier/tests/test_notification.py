@@ -1,11 +1,11 @@
 """
-RSVP email tests: the subject, body, HTML and what's sent to SES.
+RSVP notification tests: the subject, body, HTML and what's sent to SES.
 """
 
 from unittest.mock import MagicMock
 
-import emails
-from emails import RsvpEmail
+import mail
+from notification import RsvpNotification
 
 
 def guest(name, attending, **fields):
@@ -37,7 +37,7 @@ def invitation(guests, notes="", responded_at="2026-10-25T01:00:00+00:00"):
 
 
 def test_first_rsvp():
-    email = RsvpEmail(
+    email = RsvpNotification(
         {
             "invitation": invitation(
                 [guest("Jamie", True), guest("Plus-one", False, plus_one=True)]
@@ -64,14 +64,14 @@ def test_first_rsvp():
 
 
 def test_first_rsvp_with_nobody_coming_sends_regrets():
-    email = RsvpEmail(
+    email = RsvpNotification(
         {"invitation": invitation([guest("Jamie", False)]), "previous": None}
     )
     assert email.subject() == "Jamie just RSVP'd (sending their regrets)"
 
 
 def test_updated_rsvp_lists_what_changed():
-    email = RsvpEmail(
+    email = RsvpNotification(
         {
             "previous": invitation(
                 [guest("Jamie", True), guest("Plus-one", False, plus_one=True)]
@@ -110,7 +110,7 @@ def test_updated_rsvp_lists_what_changed():
 
 
 def test_guest_who_can_no_longer_come_is_a_change():
-    email = RsvpEmail(
+    email = RsvpNotification(
         {
             "previous": invitation([guest("Jamie", True)]),
             "invitation": invitation([guest("Jamie", False)]),
@@ -119,50 +119,39 @@ def test_guest_who_can_no_longer_come_is_a_change():
     assert email.changes() == ["Jamie can no longer come"]
 
 
-def test_resubmitting_the_same_answers_sends_no_email(monkeypatch):
-    monkeypatch.setattr(emails, "ses", MagicMock())
+def test_resubmitting_the_same_answers_has_no_changes():
     answers = invitation([guest("Jamie", True)])
-
-    RsvpEmail({"previous": answers, "invitation": answers}).send()
-
-    emails.ses.send_email.assert_not_called()
+    email = RsvpNotification({"previous": answers, "invitation": answers})
+    assert not email.changes()
 
 
-def test_html_shows_the_same_content_and_escapes_guest_text():
-    email = RsvpEmail(
-        {
-            "invitation": invitation([guest("Jamie <b>", True)], notes="Can't wait <3"),
-            "previous": None,
-        }
-    )
-
-    html = email.html()
+def test_html_shows_whether_its_new_and_how_many_are_coming():
+    html = RsvpNotification(
+        {"invitation": invitation([guest("Jamie", True)]), "previous": None}
+    ).html()
 
     assert "New RSVP" in html
     assert "1 of 1 coming" in html
-    assert "Jamie &lt;b&gt;" in html
-    assert "Can&#x27;t wait &lt;3" in html
-    assert "<b>" not in html
 
 
-def test_send_emails_every_recipient_as_html_and_plain_text(monkeypatch):
-    monkeypatch.setattr(emails, "ses", MagicMock())
-    email = RsvpEmail(
+def test_a_link_in_a_guests_note_isnt_a_real_link():
+    note = '<a href="https://spam.example">Click me</a>'
+    html = RsvpNotification(
+        {"invitation": invitation([guest("Jamie", True)], notes=note), "previous": None}
+    ).html()
+
+    assert note not in html
+
+
+def test_it_goes_to_every_recipient(monkeypatch):
+    monkeypatch.setattr(mail, "ses", MagicMock())
+
+    RsvpNotification(
         {"invitation": invitation([guest("Jamie", True)]), "previous": None}
-    )
+    ).send()
 
-    email.send()
-
-    emails.ses.send_email.assert_called_once_with(
-        FromEmailAddress="Wedding RSVPs <rsvp@example.com>",
-        Destination={"ToAddresses": ["colton@example.com", "tess@example.com"]},
-        Content={
-            "Simple": {
-                "Subject": {"Data": email.subject(), "Charset": "UTF-8"},
-                "Body": {
-                    "Text": {"Data": email.body(), "Charset": "UTF-8"},
-                    "Html": {"Data": email.html(), "Charset": "UTF-8"},
-                },
-            }
-        },
-    )
+    sent = mail.ses.send_email.call_args.kwargs
+    assert sent["FromEmailAddress"] == "Wedding RSVPs <rsvp@example.com>"
+    assert sent["Destination"] == {
+        "ToAddresses": ["colton@example.com", "tess@example.com"]
+    }

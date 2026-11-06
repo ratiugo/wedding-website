@@ -11,7 +11,7 @@ Lambda to update our Google Sheet and email us.
 ```
 frontend/              The site: index.html, rsvp.html, css/, js/
 backend/rsvp/          RSVP Lambda: handler.py (API routes), invitation.py, db.py
-backend/notifier/      Notifier Lambda: handler.py, emails.py, sheets.py
+backend/notifier/      Notifier Lambda: handler.py, notification.py, confirmation.py, card.py, mail.py, sheets.py
 backend/scripts/       dev_server.py (local site + API), local_aws.py (local bucket, table, examples),
                        setup_sheet.py (Google Sheet tabs), load_guests.py (guest list -> invitations),
                        send_update.py (update emails to guests)

@@ -43,6 +43,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 import card
+import mail
 from load_guests import get_invitations
 
 SITE_URL = os.environ["SITE_URL"]
@@ -51,8 +52,6 @@ REPLY_TO = os.environ["REPLY_TO"]
 
 AUDIENCES = ("accepted", "no-response", "everyone")
 HEADERS = ("subject", "audience", "heading", "link")
-
-ses = boto3.client("sesv2")
 
 
 def main():
@@ -238,36 +237,13 @@ def send_email(message, invitation, to=None):
     Replies and bounce notifications go to REPLY_TO. The List-Unsubscribe header
     points to the invitation's opt-out page.
     """
-    ses.send_email(
-        FromEmailAddress=SENDER,
-        Destination={"ToAddresses": [to or invitation["email"]]},
-        ReplyToAddresses=[REPLY_TO],
-        FeedbackForwardingEmailAddress=REPLY_TO,
-        Content={
-            "Simple": {
-                "Subject": {
-                    "Data": ("[Test] " if to else "") + message["subject"],
-                    "Charset": "UTF-8",
-                },
-                "Body": {
-                    "Text": {
-                        "Data": render_text(message, invitation),
-                        "Charset": "UTF-8",
-                    },
-                    "Html": {
-                        "Data": render_html(message, invitation),
-                        "Charset": "UTF-8",
-                    },
-                },
-                "Headers": [
-                    {
-                        "Name": "List-Unsubscribe",
-                        "Value": f"<{opt_out_url(invitation)}>",
-                    }
-                ],
-            }
-        },
+    email_content = mail.content(
+        ("[Test] " if to else "") + message["subject"],
+        render_text(message, invitation),
+        render_html(message, invitation),
+        headers=[{"Name": "List-Unsubscribe", "Value": f"<{opt_out_url(invitation)}>"}],
     )
+    mail.send(SENDER, [to or invitation["email"]], email_content, reply_to=REPLY_TO)
 
 
 def render_html(message, invitation):

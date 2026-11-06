@@ -1,10 +1,13 @@
 """
-HTML building blocks for emails, styled to match the save-the-date card.
+Shared pieces of emails: HTML building blocks styled to match the save-the-date
+card, and guest details.
 
 Styles are inline since most email clients strip <style> blocks. Clients that don't
-load web fonts (e.g. Gmail) fall back to Georgia and Arial. All arguments are HTML,
-so callers must escape untrusted text.
+load web fonts (e.g. Gmail) fall back to Georgia and Arial. Arguments are HTML unless
+a function says otherwise, so callers must escape untrusted text.
 """
+
+from html import escape
 
 SERIF = "'Cormorant Garamond', Georgia, serif"
 SANS = "Jost, 'Helvetica Neue', Arial, sans-serif"
@@ -126,3 +129,21 @@ def ampersand(text):
     return text.replace(
         "&amp;", f'<span style="font-style: italic; color: {LILAC_DEEP};">&amp;</span>'
     )
+
+
+def section(title, lines):
+    """
+    Return a titled list, like "Coming (2)" and a line per guest. The title and
+    lines are plain text, and are escaped here.
+    """
+    return heading(escape(title)) + "".join(paragraph(escape(line)) for line in lines)
+
+
+def details(guest):
+    """
+    Return the extras for a guest who is coming, like " (child, dietary: Vegan)".
+    """
+    extras = ["child"] if guest["child"] else []
+    if guest["dietary"]:
+        extras.append(f"dietary: {guest['dietary']}")
+    return f" ({', '.join(extras)})" if extras else ""

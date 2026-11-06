@@ -146,7 +146,8 @@ resource "aws_iam_role_policy_attachment" "notifier_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Read RSVP events and the Google Sheet parameter, and send email as sender_email.
+# Read RSVP events, the Google Sheet parameter and invitations, and send email as
+# sender_email or guest_sender_email.
 resource "aws_iam_role_policy" "notifier" {
   name = "notifier"
   role = aws_iam_role.notifier.id
@@ -165,14 +166,23 @@ resource "aws_iam_role_policy" "notifier" {
         Resource = aws_ssm_parameter.google_sheet.arn
       },
       {
-        # SES checks this against the sender's and (in the sandbox) each recipient's
-        # identity, so it's limited by the From address instead: sender_email, alone
-        # or after a display name ("Wedding RSVPs <rsvp@...>").
+        Effect   = "Allow"
+        Action   = "dynamodb:GetItem"
+        Resource = aws_dynamodb_table.invitations.arn
+      },
+      {
+        # Limited by From address, since SES checks resources against recipient
+        # identities too. Each sender can appear alone or after a display name.
         Effect   = "Allow"
         Action   = "ses:SendEmail"
         Resource = "*"
         Condition = {
-          StringLike = { "ses:FromAddress" = [var.sender_email, "*<${var.sender_email}>"] }
+          StringLike = {
+            "ses:FromAddress" = [
+              var.sender_email, "*<${var.sender_email}>",
+              var.guest_sender_email, "*<${var.guest_sender_email}>",
+            ]
+          }
         }
       },
     ]

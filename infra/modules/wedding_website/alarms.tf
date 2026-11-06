@@ -65,3 +65,33 @@ resource "aws_cloudwatch_metric_alarm" "rsvp_publish_failed" {
   treat_missing_data  = "notBreaching"
   alarm_actions       = [aws_sns_topic.alarms[0].arn]
 }
+
+# A guest's RSVP confirmation email couldn't be sent.
+resource "aws_cloudwatch_log_metric_filter" "confirmation_failed" {
+  count = var.alarm_email == null ? 0 : 1
+
+  name           = "confirmation-failed"
+  log_group_name = aws_cloudwatch_log_group.notifier.name
+  pattern        = "\"Failed to send RSVP confirmation\""
+
+  metric_transformation {
+    namespace = "Wedding"
+    name      = "${var.environment}-confirmation-failed"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "confirmation_failed" {
+  count = var.alarm_email == null ? 0 : 1
+
+  alarm_name          = "wedding-${var.environment}-confirmation-failed"
+  namespace           = "Wedding"
+  metric_name         = "${var.environment}-confirmation-failed"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms[0].arn]
+}

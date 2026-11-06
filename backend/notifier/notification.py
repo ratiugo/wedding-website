@@ -14,19 +14,16 @@ from email.utils import formataddr
 from html import escape
 from zoneinfo import ZoneInfo
 
-import boto3
-
 import card
+import mail
 
 TIMEZONE = ZoneInfo("America/Vancouver")
 SENDER_NAME = os.environ["SENDER_NAME"]
 SENDER_EMAIL = os.environ["SENDER_EMAIL"]
 RECIPIENT_EMAILS = os.environ["RECIPIENT_EMAILS"].split(",")
 
-ses = boto3.client("sesv2")
 
-
-class RsvpEmail:
+class RsvpNotification:
     """
     The email for one RSVP event.
     """
@@ -41,22 +38,12 @@ class RsvpEmail:
 
     def send(self):
         """
-        Send the email, unless it's an update where nothing changed.
+        Send the email.
         """
-        if self.previous and not self.changes():
-            return
-        ses.send_email(
-            FromEmailAddress=formataddr((SENDER_NAME, SENDER_EMAIL)),
-            Destination={"ToAddresses": RECIPIENT_EMAILS},
-            Content={
-                "Simple": {
-                    "Subject": {"Data": self.subject(), "Charset": "UTF-8"},
-                    "Body": {
-                        "Text": {"Data": self.body(), "Charset": "UTF-8"},
-                        "Html": {"Data": self.html(), "Charset": "UTF-8"},
-                    },
-                }
-            },
+        mail.send(
+            formataddr((SENDER_NAME, SENDER_EMAIL)),
+            RECIPIENT_EMAILS,
+            mail.content(self.subject(), self.body(), self.html()),
         )
 
     def subject(self):
@@ -83,7 +70,7 @@ class RsvpEmail:
         if self.coming:
             lines.append(f"Coming ({len(self.coming)})")
             lines.extend(
-                f"  • {guest['name']}{details(guest)}" for guest in self.coming
+                f"  • {guest['name']}{card.details(guest)}" for guest in self.coming
             )
             lines.append("")
         if self.not_coming:
@@ -104,17 +91,17 @@ class RsvpEmail:
         """
         sections = []
         if self.previous:
-            sections.append(section("What changed", self.changes()))
+            sections.append(card.section("What changed", self.changes()))
         if self.coming:
             sections.append(
-                section(
+                card.section(
                     f"Coming ({len(self.coming)})",
-                    [guest["name"] + details(guest) for guest in self.coming],
+                    [guest["name"] + card.details(guest) for guest in self.coming],
                 )
             )
         if self.not_coming:
             sections.append(
-                section(
+                card.section(
                     f"Not coming ({len(self.not_coming)})",
                     [guest["name"] for guest in self.not_coming],
                 )
@@ -169,22 +156,3 @@ class RsvpEmail:
             lines.append(f"Note: {old or 'none'} → {new or 'none'}")
 
         return lines
-
-
-def details(guest):
-    """
-    Extras for a guest who is coming, like " (child, dietary: Vegan)".
-    """
-    extras = ["child"] if guest["child"] else []
-    if guest["dietary"]:
-        extras.append(f"dietary: {guest['dietary']}")
-    return f" ({', '.join(extras)})" if extras else ""
-
-
-def section(title, lines):
-    """
-    A titled list for the HTML email, like "Coming (2)" and a line per guest.
-    """
-    return card.heading(escape(title)) + "".join(
-        card.paragraph(escape(line)) for line in lines
-    )

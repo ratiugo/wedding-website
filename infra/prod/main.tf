@@ -21,6 +21,11 @@ variable "recipient_emails" {
   type        = list(string)
 }
 
+variable "reply_to" {
+  description = "Where guest email replies go. Set in terraform.tfvars, which is gitignored."
+  type        = string
+}
+
 variable "alarm_email" {
   description = "Where to email when a Lambda fails. Set in terraform.tfvars, which is gitignored."
   type        = string
@@ -67,7 +72,12 @@ module "wedding_website" {
   sender_name      = "Wedding RSVPs"
   sender_email     = "rsvp@tessandcolton.com"
   recipient_emails = var.recipient_emails
-  alarm_email      = var.alarm_email
+
+  guest_sender_name  = "Colton & Tess"
+  guest_sender_email = "hello@tessandcolton.com"
+  reply_to           = var.reply_to
+
+  alarm_email = var.alarm_email
 }
 
 output "deploy_role_arn" {

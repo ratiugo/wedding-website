@@ -116,6 +116,10 @@ services:
       SENDER_NAME: Wedding RSVPs
       SENDER_EMAIL: rsvp@example.com
       RECIPIENT_EMAILS: colton@example.com,tess@example.com
+      GUEST_SENDER: Us <hello@example.com>
+      REPLY_TO: us@example.com
+      SITE_URL: https://example.com
+      INVITATIONS_TABLE: wedding-invitations
       AWS_DEFAULT_REGION: us-east-1
     volumes:
       - ./:/backend
