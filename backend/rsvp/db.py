@@ -11,7 +11,7 @@ inside it:
         "updates_opt_out": False,
         "guests": [
             {"id": 1, "name": "Morgan Rivera", "plus_one": False, "child": False,
-             "attending": None, "dietary": ""},
+             "attending": None, "events": {}, "dietary": ""},
             ...
         ],
     }

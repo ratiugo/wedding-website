@@ -75,15 +75,28 @@
         Guest's name
         <input type="text" name="name" maxlength="100">
       </label>
-      <div class="choices">
+      <div class="choices wedding">
         <label><input type="radio" value="yes" required> Joyfully accepts</label>
         <label><input type="radio" value="no"> Regretfully declines</label>
       </div>
+      <!-- The weekend events, filled in from the invitation, for guests coming to the wedding -->
+      <div class="events" hidden></div>
       <label class="dietary" hidden>
         Dietary restrictions or allergies <span class="optional">(optional)</span>
         <input type="text" name="dietary" maxlength="500">
       </label>
     </fieldset>
+  </template>
+
+  <!-- One of these is cloned per weekend event, inside each guest -->
+  <template id="event-template">
+    <div class="event">
+      <p class="event-name"></p>
+      <div class="choices">
+        <label><input type="radio" value="yes"> Will be there</label>
+        <label><input type="radio" value="no"> Can't make it</label>
+      </div>
+    </div>
   </template>
 
   <script src="js/menu.js"></script>

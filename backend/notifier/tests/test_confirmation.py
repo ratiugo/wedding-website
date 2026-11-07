@@ -17,7 +17,13 @@ INVITATION = {
     "notes": "See you there!",
     "responded_at": "2026-10-25T01:00:00+00:00",
     "guests": [
-        {"name": "Jamie", "attending": True, "child": False, "dietary": "Vegan"},
+        {
+            "name": "Jamie",
+            "attending": True,
+            "events": {"bbq": True, "brunch": False},
+            "child": False,
+            "dietary": "Vegan",
+        },
         {"name": "Alex", "attending": False, "child": False, "dietary": ""},
     ],
 }
@@ -51,7 +57,7 @@ def test_the_plain_text_email():
             "",
             "Thanks for your RSVP!",
             "",
-            "  • Jamie: coming (dietary: Vegan)",
+            "  • Jamie: coming to the wedding and Friday BBQ (dietary: Vegan)",
             "  • Alex: not coming",
             "",
             "Your note: See you there!",

@@ -19,6 +19,7 @@ EVENT = {
             {
                 "name": "Priya Shah",
                 "attending": True,
+                "events": {"bbq": True, "brunch": False},
                 "child": False,
                 "plus_one": False,
                 "dietary": "Vegan",
@@ -44,6 +45,8 @@ ROWS = [
         "No",
         "Vegan",
         "Can't wait!",
+        "Coming",
+        "Not coming",
         "2026-10-24 18:00",
     ],
     [
@@ -55,6 +58,8 @@ ROWS = [
         "Yes",
         "",
         "Can't wait!",
+        "",
+        "",
         "2026-10-24 18:00",
     ],
 ]
@@ -90,5 +95,5 @@ def test_updated_rsvp_overwrites_that_invitations_rows(worksheet):
 
     GuestSheet("sheet-id", {}).apply(EVENT)
 
-    worksheet.update.assert_called_once_with(values=ROWS, range_name="A3:I4")
+    worksheet.update.assert_called_once_with(values=ROWS, range_name="A3:K4")
     worksheet.append_rows.assert_not_called()

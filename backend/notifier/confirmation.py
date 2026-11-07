@@ -13,6 +13,7 @@ from botocore.exceptions import ClientError
 
 import card
 import mail
+from events import EVENTS, coming_to
 
 GUEST_SENDER = os.environ["GUEST_SENDER"]
 REPLY_TO = os.environ["REPLY_TO"]
@@ -81,13 +82,31 @@ def html(invitation):
 
 def answers(invitation):
     """
-    Each guest's answer, like "Jamie: coming (dietary: Vegan)" or "Alex: not coming".
+    Each guest's answer, like "Jamie: coming to the wedding and Friday BBQ (dietary:
+    Vegan)" or "Alex: not coming".
     """
     return [
         f"{guest['name']}: "
-        + ("coming" + card.details(guest) if guest["attending"] else "not coming")
+        + (
+            f"coming to {events_for(guest)}{card.details(guest)}"
+            if guest["attending"]
+            else "not coming"
+        )
         for guest in invitation["guests"]
     ]
+
+
+def events_for(guest):
+    """
+    The wedding and the weekend events a guest is coming to, like "the wedding,
+    Friday BBQ and Sunday brunch".
+    """
+    names = ["the wedding"] + [
+        title for event, title in EVENTS.items() if coming_to(guest, event)
+    ]
+    return (
+        " and ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 1 else names[0]
+    )
 
 
 def rsvp_url(invitation):

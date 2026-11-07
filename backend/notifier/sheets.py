@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo
 
 import gspread
 
+from events import EVENTS, coming_to
+
 TIMEZONE = ZoneInfo("America/Vancouver")
 
 HEADER = [
@@ -19,6 +21,7 @@ HEADER = [
     "Plus-one",
     "Dietary",
     "Note",
+    *EVENTS.values(),
     "Updated",
 ]
 
@@ -78,7 +81,17 @@ class GuestSheet:
                 "Yes" if guest["plus_one"] else "No",
                 guest["dietary"],
                 invitation["notes"],
+                *[event_status(guest, event) for event in EVENTS],
                 f"{responded.astimezone(TIMEZONE):%Y-%m-%d %H:%M}",
             ]
             for guest in invitation["guests"]
         ]
+
+
+def event_status(guest, event):
+    """
+    A guest's answer for a weekend event, blank if they aren't coming to the wedding.
+    """
+    if not guest["attending"]:
+        return ""
+    return "Coming" if coming_to(guest, event) else "Not coming"

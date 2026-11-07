@@ -22,9 +22,13 @@ def guest(guest_id, name, plus_one=False, child=False):
         "plus_one": plus_one,
         "child": child,
         "attending": None,
+        "events": {},
         "dietary": "",
     }
 
+
+# Coming to both weekend events.
+BOTH = {"bbq": True, "brunch": True}
 
 INVITATION = {
     "invite_code": "TEST0001",
@@ -95,6 +99,10 @@ def test_get_looks_up_the_invite_code_ignoring_case_and_punctuation(database):
         "responded_at": None,
         "updates_opt_out": False,
         "guests": INVITATION["guests"],
+        "events": [
+            {"id": "bbq", "name": "Friday BBQ"},
+            {"id": "brunch", "name": "Sunday brunch"},
+        ],
     }
 
 
@@ -107,9 +115,9 @@ def test_opting_out_is_saved_and_shown(database):
     saved = Invitation.get("TEST0001").respond(
         {
             "guests": [
-                {"id": 1, "attending": True},
-                {"id": 2, "attending": True},
-                {"id": 3, "attending": True},
+                {"id": 1, "attending": True, "events": BOTH},
+                {"id": 2, "attending": True, "events": BOTH},
+                {"id": 3, "attending": True, "events": BOTH},
             ],
             "updates_opt_out": True,
         }
@@ -145,8 +153,8 @@ def test_first_rsvp_is_saved_and_published(database, s3):
     saved = Invitation.get("TEST0001").respond(
         {
             "guests": [
-                {"id": 1, "attending": True},
-                {"id": 2, "attending": True},
+                {"id": 1, "attending": True, "events": BOTH},
+                {"id": 2, "attending": True, "events": BOTH},
                 {"id": 3, "attending": False},
             ],
             "notes": "High chair?",
@@ -156,8 +164,8 @@ def test_first_rsvp_is_saved_and_published(database, s3):
     database.save_response.assert_called_once_with(
         "TEST0001",
         [
-            {**guest(1, "Morgan Rivera"), "attending": True},
-            {**guest(2, "Sam Rivera"), "attending": True},
+            {**guest(1, "Morgan Rivera"), "attending": True, "events": BOTH},
+            {**guest(2, "Sam Rivera"), "attending": True, "events": BOTH},
             {**guest(3, "Ellie Rivera", child=True), "attending": False},
         ],
         "High chair?",
@@ -193,7 +201,7 @@ def test_text_is_trimmed_and_dietary_dropped_for_guests_not_coming(database):
     Invitation.get("TEST0001").respond(
         {
             "guests": [
-                {"id": 1, "attending": True, "dietary": " Vegan "},
+                {"id": 1, "attending": True, "events": BOTH, "dietary": " Vegan "},
                 {"id": 2, "attending": False, "dietary": "Vegan"},
                 {"id": 3, "attending": False},
             ],
@@ -215,7 +223,7 @@ def test_body_without_a_guest_list_is_rejected(database):
 
 
 def test_answer_without_a_guest_id_is_rejected(database):
-    body = {"guests": [{"attending": True}]}
+    body = {"guests": [{"attending": True, "events": BOTH}]}
 
     with pytest.raises(BadRequest) as error:
         Invitation.get("TEST0001").respond(body)
@@ -225,7 +233,12 @@ def test_answer_without_a_guest_id_is_rejected(database):
 
 
 def test_every_guest_must_be_answered(database):
-    body = {"guests": [{"id": 1, "attending": True}, {"id": 2, "attending": True}]}
+    body = {
+        "guests": [
+            {"id": 1, "attending": True, "events": BOTH},
+            {"id": 2, "attending": True, "events": BOTH},
+        ]
+    }
 
     with pytest.raises(BadRequest) as error:
         Invitation.get("TEST0001").respond(body)
@@ -235,7 +248,12 @@ def test_every_guest_must_be_answered(database):
 
 
 def test_answers_for_another_invitations_guests_are_rejected(database):
-    body = {"guests": [{"id": 4, "attending": True}, {"id": 5, "attending": True}]}
+    body = {
+        "guests": [
+            {"id": 4, "attending": True, "events": BOTH},
+            {"id": 5, "attending": True, "events": BOTH},
+        ]
+    }
 
     with pytest.raises(BadRequest) as error:
         Invitation.get("TEST0001").respond(body)
@@ -248,8 +266,8 @@ def test_attending_must_be_true_or_false(database):
     body = {
         "guests": [
             {"id": 1, "attending": "yes"},
-            {"id": 2, "attending": True},
-            {"id": 3, "attending": True},
+            {"id": 2, "attending": True, "events": BOTH},
+            {"id": 3, "attending": True, "events": BOTH},
         ]
     }
 
@@ -262,7 +280,12 @@ def test_attending_must_be_true_or_false(database):
 
 def test_plus_one_who_is_coming_needs_a_name(database):
     database.get_invitation.return_value = INVITATION_WITH_PLUS_ONE
-    body = {"guests": [{"id": 4, "attending": True}, {"id": 5, "attending": True}]}
+    body = {
+        "guests": [
+            {"id": 4, "attending": True, "events": BOTH},
+            {"id": 5, "attending": True, "events": BOTH},
+        ]
+    }
 
     with pytest.raises(BadRequest) as error:
         Invitation.get("TEST0002").respond(body)
@@ -277,8 +300,8 @@ def test_only_the_plus_one_can_be_named(database):
     Invitation.get("TEST0002").respond(
         {
             "guests": [
-                {"id": 4, "attending": True, "name": "Someone else"},
-                {"id": 5, "attending": True, "name": " Alex "},
+                {"id": 4, "attending": True, "events": BOTH, "name": "Someone else"},
+                {"id": 5, "attending": True, "events": BOTH, "name": " Alex "},
             ]
         }
     )
@@ -295,12 +318,52 @@ def test_rsvp_is_saved_even_if_publishing_fails(database, s3, caplog):
     Invitation.get("TEST0001").respond(
         {
             "guests": [
-                {"id": 1, "attending": True},
-                {"id": 2, "attending": True},
-                {"id": 3, "attending": True},
+                {"id": 1, "attending": True, "events": BOTH},
+                {"id": 2, "attending": True, "events": BOTH},
+                {"id": 3, "attending": True, "events": BOTH},
             ]
         }
     )
 
     database.save_response.assert_called_once()
     assert "Failed to publish RSVP event for TEST0001" in caplog.text
+
+
+def test_guests_coming_to_the_wedding_answer_for_each_event():
+    with pytest.raises(BadRequest) as error:
+        Invitation.get("TEST0001").respond(
+            {
+                "guests": [
+                    {"id": 1, "attending": True, "events": {"bbq": True}},
+                    {"id": 2, "attending": False},
+                    {"id": 3, "attending": False},
+                ]
+            }
+        )
+
+    assert (
+        str(error.value)
+        == "Please say whether Morgan Rivera is coming to the Sunday brunch."
+    )
+
+
+def test_guests_not_coming_to_the_wedding_have_no_event_answers(database):
+    Invitation.get("TEST0001").respond(
+        {
+            "guests": [
+                {"id": 1, "attending": False, "events": BOTH},
+                {"id": 2, "attending": False},
+                {"id": 3, "attending": False},
+            ]
+        }
+    )
+
+    saved_guests = database.save_response.call_args.args[1]
+    assert saved_guests[0]["events"] == {}
+
+
+def test_view_lists_the_weekend_events():
+    assert Invitation.get("TEST0001").view()["events"] == [
+        {"id": "bbq", "name": "Friday BBQ"},
+        {"id": "brunch", "name": "Sunday brunch"},
+    ]
