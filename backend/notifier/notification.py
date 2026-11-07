@@ -15,6 +15,7 @@ from html import escape
 from zoneinfo import ZoneInfo
 
 import card
+from events import EVENTS, coming_to
 import mail
 
 TIMEZONE = ZoneInfo("America/Vancouver")
@@ -73,6 +74,10 @@ class RsvpNotification:
                 f"  • {guest['name']}{card.details(guest)}" for guest in self.coming
             )
             lines.append("")
+            for title, names in self.events():
+                lines.append(f"{title} ({len(names)})")
+                lines.extend(f"  • {name}" for name in names)
+                lines.append("")
         if self.not_coming:
             lines.append(f"Not coming ({len(self.not_coming)})")
             lines.extend(f"  • {guest['name']}" for guest in self.not_coming)
@@ -99,6 +104,10 @@ class RsvpNotification:
                     [guest["name"] + card.details(guest) for guest in self.coming],
                 )
             )
+            sections += [
+                card.section(f"{title} ({len(names)})", names)
+                for title, names in self.events()
+            ]
         if self.not_coming:
             sections.append(
                 card.section(
@@ -122,6 +131,15 @@ class RsvpNotification:
                 f"Responded {self.responded()}"
             ),
         )
+
+    def events(self):
+        """
+        Each weekend event's title and the names of the guests coming to it.
+        """
+        return [
+            (title, [guest["name"] for guest in self.coming if coming_to(guest, event)])
+            for event, title in EVENTS.items()
+        ]
 
     def responded(self):
         """
@@ -149,6 +167,8 @@ class RsvpNotification:
                 coming = "is now coming" if guest["attending"] else "can no longer come"
                 lines.append(f"{name} {coming}")
 
+            lines += event_changes(before, guest)
+
             if guest["attending"] and before["dietary"] != guest["dietary"]:
                 old, new = before["dietary"] or "none", guest["dietary"] or "none"
                 lines.append(f"{name}'s dietary: {old} → {new}")
@@ -158,3 +178,28 @@ class RsvpNotification:
             lines.append(f"Note: {old or 'none'} → {new or 'none'}")
 
         return lines
+
+
+def event_changes(before, guest):
+    """
+    A line for each weekend event a guest coming to the wedding has a different
+    answer for than before, like "Alex's Friday BBQ: no answer → coming".
+    """
+    if not guest["attending"]:
+        return []
+    lines = []
+    for event, title in EVENTS.items():
+        old = before.get("events", {}).get(event) if before["attending"] else None
+        new = guest.get("events", {}).get(event)
+        if old != new:
+            lines.append(f"{guest['name']}'s {title}: {answer(old)} → {answer(new)}")
+    return lines
+
+
+def answer(coming):
+    """
+    An event answer in words.
+    """
+    if coming is None:
+        return "no answer"
+    return "coming" if coming else "not coming"
