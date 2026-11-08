@@ -40,7 +40,10 @@ def test_first_rsvp():
     email = RsvpNotification(
         {
             "invitation": invitation(
-                [guest("Jamie", True), guest("Plus-one", False, plus_one=True)]
+                [
+                    guest("Jamie", True, events={"bbq": True, "brunch": False}),
+                    guest("Plus-one", False, plus_one=True),
+                ]
             ),
             "previous": None,
         }
@@ -53,6 +56,11 @@ def test_first_rsvp():
             "",
             "Coming (1)",
             "  • Jamie",
+            "",
+            "Friday BBQ (1)",
+            "  • Jamie",
+            "",
+            "Sunday brunch (0)",
             "",
             "Not coming (1)",
             "  • Plus-one",
@@ -102,6 +110,10 @@ def test_updated_rsvp_lists_what_changed():
                 "  • Jamie",
                 "  • Alex (child, dietary: Vegan)",
                 "",
+                "Friday BBQ (0)",
+                "",
+                "Sunday brunch (0)",
+                "",
                 "Their note:",
                 "  Bringing Alex!",
             ]
@@ -117,6 +129,16 @@ def test_guest_who_can_no_longer_come_is_a_change():
         }
     )
     assert email.changes() == ["Jamie can no longer come"]
+
+
+def test_a_changed_event_answer_is_a_change():
+    email = RsvpNotification(
+        {
+            "previous": invitation([guest("Jamie", True, events={"bbq": False})]),
+            "invitation": invitation([guest("Jamie", True, events={"bbq": True})]),
+        }
+    )
+    assert email.changes() == ["Jamie's Friday BBQ: not coming → coming"]
 
 
 def test_resubmitting_the_same_answers_has_no_changes():

@@ -98,6 +98,7 @@ def test_invitations_are_added_with_new_codes_without_overwriting(tmp_path):
         "plus_one": True,
         "child": False,
         "attending": None,
+        "events": {},
         "dietary": "",
     }
 

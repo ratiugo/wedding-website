@@ -322,6 +322,8 @@ button.button:disabled { opacity: .6; cursor: progress; }
 .choices { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; }
 .rsvp .choices label { flex-direction: row; align-items: center; gap: .5rem; cursor: pointer; }
 .choices input { accent-color: var(--ink); width: 1.05rem; height: 1.05rem; }
+.events { display: flex; flex-direction: column; gap: .9rem; padding-left: 1rem; border-left: 1px solid var(--taupe); }
+.rsvp .event-name { margin: 0 0 .25rem; font-family: var(--mono); text-transform: uppercase; letter-spacing: .15em; font-size: .85rem; color: var(--ink); }
 
 /* On a phone, tiles stack: photo, then text, then a band of ink. */
 @media (max-width: 700px) {

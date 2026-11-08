@@ -17,6 +17,7 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from db import Database
+from events import EVENTS
 
 logger = logging.getLogger(__name__)
 
@@ -99,11 +100,12 @@ class Invitation:
         Validate a request body's answers and return the guests with them filled in.
 
         The body must answer for every guest on this invitation, saying whether each
-        is attending, and give a name for a plus-one who's coming. Otherwise this
-        raises BadRequest, with a message for the guest.
+        is attending the wedding, and if so whether they're coming to each of EVENTS,
+        and give a name for a plus-one who's coming. Otherwise this raises
+        BadRequest, with a message for the guest.
 
-        dietary is blank for guests who aren't coming. Only a plus-one's name can be
-        changed, and only when one is given.
+        dietary and events are blank for guests who aren't coming. Only a plus-one's
+        name can be changed, and only when one is given.
         """
         try:
             answers = {answer["id"]: answer for answer in body["guests"]}
@@ -124,11 +126,13 @@ class Invitation:
             if guest["plus_one"] and attending and not plus_one_name:
                 raise BadRequest("Please tell us your guest's name.")
 
+            name = plus_one_name or guest["name"]
             cleaned.append(
                 {
                     **guest,
-                    "name": plus_one_name or guest["name"],
+                    "name": name,
                     "attending": attending,
+                    "events": event_answers(name, answer) if attending else {},
                     "dietary": clean(answer.get("dietary")) if attending else "",
                 }
             )
@@ -159,7 +163,8 @@ class Invitation:
         """
         What a guest is allowed to see about their own invitation, as JSON data.
 
-        Each guest contains the fields: id, name, plus_one, child, attending, dietary.
+        Each guest contains the fields: id, name, plus_one, child, attending, events
+        (answers by event id), dietary. events lists the weekend events to ask about.
         The invitation's email is left out, since anyone with the code can see this.
         """
         return {
@@ -169,7 +174,23 @@ class Invitation:
             "responded_at": self.responded_at,
             "updates_opt_out": self.updates_opt_out,
             "guests": self.guests,
+            "events": [{"id": event, "name": name} for event, name in EVENTS.items()],
         }
+
+
+def event_answers(name, answer):
+    """
+    The answers for each of EVENTS from a guest's answer in a request body, where
+    name is the guest's name.
+
+    Raises BadRequest unless every event is answered true or false.
+    """
+    events = answer.get("events")
+    events = events if isinstance(events, dict) else {}
+    for event, title in EVENTS.items():
+        if not isinstance(events.get(event), bool):
+            raise BadRequest(f"Please say whether {name} is coming to the {title}.")
+    return {event: events[event] for event in EVENTS}
 
 
 def clean(text):

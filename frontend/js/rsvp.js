@@ -117,7 +117,7 @@ function guestRow(guest) {
   const nameLabel = row.querySelector(".plus-one-name");
   const nameInput = nameLabel.querySelector("input");
   const dietary = row.querySelector(".dietary");
-  const radios = row.querySelectorAll("input[type=radio]");
+  const radios = row.querySelectorAll(".wedding input[type=radio]");
 
   if (guest.plus_one) {
     row.querySelector(".guest-name").textContent = "Your guest";
@@ -134,16 +134,35 @@ function guestRow(guest) {
     radio.addEventListener("change", () => updateRow(row));
   }
   dietary.querySelector("input").value = guest.dietary;
+  row.querySelector(".events").replaceChildren(...invitation.events.map((event) => eventRow(guest, event)));
 
   updateRow(row);
   return row;
 }
 
-// Only ask for dietary info (and the plus-one's name) when the guest is coming.
+// A question about one weekend event, answered like the wedding's.
+function eventRow(guest, event) {
+  const block = document.getElementById("event-template").content.firstElementChild.cloneNode(true);
+  block.dataset.event = event.id;
+  block.querySelector(".event-name").textContent = event.name;
+  for (const radio of block.querySelectorAll("input[type=radio]")) {
+    radio.name = `event-${guest.id}-${event.id}`;
+    radio.checked = guest.events?.[event.id] === (radio.value === "yes");
+  }
+  return block;
+}
+
+// Only ask about the weekend events, dietary info and the plus-one's name when the
+// guest is coming to the wedding.
 function updateRow(row) {
-  const attending = row.querySelector("input[type=radio][value=yes]").checked;
+  const attending = row.querySelector(".wedding input[value=yes]").checked;
+  row.querySelector(".events").hidden = !attending;
   row.querySelector(".dietary").hidden = !attending;
   row.querySelector(".plus-one-name input").required = attending && !row.querySelector(".plus-one-name").hidden;
+  // Hidden questions can't be required, or the browser won't submit the form.
+  for (const radio of row.querySelectorAll(".event input[value=yes]")) {
+    radio.required = attending;
+  }
 }
 
 rsvpForm.addEventListener("submit", async (e) => {
@@ -153,7 +172,13 @@ rsvpForm.addEventListener("submit", async (e) => {
   const guests = [...document.querySelectorAll("#guest-list .guest")].map((row) => {
     const answer = {
       id: Number(row.dataset.id),
-      attending: row.querySelector("input[type=radio][value=yes]").checked,
+      attending: row.querySelector(".wedding input[value=yes]").checked,
+      events: Object.fromEntries(
+        [...row.querySelectorAll(".event")].map((block) => [
+          block.dataset.event,
+          block.querySelector("input[value=yes]").checked,
+        ])
+      ),
       dietary: row.querySelector(".dietary input").value,
     };
     if (!row.querySelector(".plus-one-name").hidden) {

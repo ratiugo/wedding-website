@@ -147,6 +147,7 @@ def new_item(invitation, code):
                 "plus_one": guest["plus_one"],
                 "child": guest["child"],
                 "attending": None,
+                "events": {},
                 "dietary": "",
             }
             for number, guest in enumerate(invitation["guests"], start=1)

@@ -16,10 +16,21 @@ import os
 
 import gspread
 
+from events import EVENTS
 from sheets import HEADER
 
-GUESTS_COLUMN_WIDTHS = [220, 100, 160, 100, 60, 80, 200, 300, 140]
+GUESTS_COLUMN_WIDTHS = (
+    [220, 100, 160, 100, 60, 80, 200, 300] + [120] * len(EVENTS) + [140]
+)
 SUMMARY_COLUMN_WIDTHS = [260, 120]
+
+
+def column(title):
+    """
+    The letter of the Guests column with a HEADER title, like "I".
+    """
+    return chr(ord("A") + HEADER.index(title))
+
 
 SUMMARY = [
     ["Guests"],
@@ -33,6 +44,12 @@ SUMMARY = [
     ["Cost per adult", 0],
     ["Cost per child", 0],
     ["Estimated catering total", "=B5*B9+B6*B10"],
+    [],
+    ["Weekend (guests coming)"],
+    *[
+        [title, f'=COUNTIF(Guests!{column(title)}:{column(title)},"Coming")']
+        for title in EVENTS.values()
+    ],
     [],
     ["Dietary needs (guests coming)"],
     [
