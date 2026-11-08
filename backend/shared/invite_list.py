@@ -4,18 +4,18 @@ hand. The guest loader reads it and writes each invitation's code back, and the
 notifier fills in the RSVP columns on each response.
 
 Columns are found by their header in row 1, so they can be moved or reordered.
+
+INVITE_LIST_WORKSHEET: Google sheets invite list worksheet name.
+INVITE_CODE: Invite code column name.
+RSVP_COLUMNS: Column names in the invite list worksheet which guests fill out
+when rsvping.
 """
 
 import re
 
 from events import EVENTS
 
-# The worksheet (tab) in the planning workbook.
 INVITE_LIST_WORKSHEET = "Invite list"
-
-# The website's columns, which are never edited by hand. The guest loader writes each
-# invitation's code, and the notifier writes the RSVP columns from guests' answers.
-# Each is named once here, so a column can be renamed by changing it here.
 INVITE_CODE = "Invite code"
 RSVP_COLUMNS = [
     "Responded",
