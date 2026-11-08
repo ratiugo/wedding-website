@@ -1,16 +1,19 @@
 """
 Create the local fake AWS resources that `make start` needs: the RSVP bucket, and the
-invitations table with the example invitations from data/guests.example.csv.
+invitations table with the example invitations from data/guests.example.csv, a CSV
+in the Invite list's layout (see load_guests.py).
 
-Runs in the rsvp container, where AWS_ENDPOINT_URL points boto3 at the fake (moto).
+Runs in the local-aws container, where AWS_ENDPOINT_URL points boto3 at the fake
+(moto).
 The fake keeps everything in memory, so it starts empty each time it's created.
 """
 
+import csv
 import os
 
 import boto3
 
-from load_guests import add, read_guest_list
+from load_guests import add, read_invite_list
 
 EXAMPLES = "/data/guests.example.csv"
 
@@ -36,7 +39,9 @@ def main():
         print("Invitations table already exists, left as is")
         return
 
-    invitations, problems = read_guest_list(EXAMPLES)
+    with open(EXAMPLES, encoding="utf-8", newline="") as file:
+        header, *rows = csv.reader(file)
+    invitations, problems = read_invite_list(header, rows)
     if problems:
         raise ValueError(f"{EXAMPLES} has problems: {problems}")
     print("Example invitations:")

@@ -15,8 +15,28 @@ services:
       AWS_ACCESS_KEY_ID: local
       AWS_SECRET_ACCESS_KEY: local
       AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      aws:
+        condition: service_healthy
+
+  # `make start`: create the local bucket and table, with the example invitations
+  # (scripts/local_aws.py).
+  local-aws:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: notifier/Dockerfile
+      target: runtime
+    entrypoint: ["python", "/scripts/local_aws.py"]
+    environment:
+      INVITATIONS_TABLE: wedding-invitations
+      RSVP_BUCKET: wedding-rsvps
+      AWS_ENDPOINT_URL: http://aws:5000
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: us-east-1
+      PYTHONPATH: /var/task
     volumes:
-      # For `make start`, which runs scripts/local_aws.py here.
       - ./scripts:/scripts:ro
       - ./data:/data:ro
     depends_on:
@@ -41,23 +61,27 @@ services:
       # /dev/null when backend/.env doesn't set the key's path (as in CI), so the file still loads.
       - ${GOOGLE_KEY_PATH:-/dev/null}:/secrets/google-key.json:ro
 
-  # `make load-guests`: load a guest list into dev's or prod's invitations table
-  # (scripts/load_guests.py), signed in with your AWS profile from ~/.aws.
+  # `make load-guests`: load the planning workbook's Invite list into dev's or prod's
+  # invitations table (scripts/load_guests.py), signed in with your AWS profile from
+  # ~/.aws and the Google service account key.
   load-guests:
     profiles: [tools]
     build:
       context: .
-      dockerfile: rsvp/Dockerfile
+      dockerfile: notifier/Dockerfile
       target: runtime
     entrypoint: ["python", "/scripts/load_guests.py"]
     environment:
       AWS_PROFILE: ${AWS_PROFILE:-}
       AWS_DEFAULT_REGION: us-west-2
       HOME: /root
+      GOOGLE_SHEET_ID: ${GOOGLE_SHEET_ID:-}
+      GOOGLE_KEY_FILE: /secrets/google-key.json
+      # Lets the script import gspread and shared/ from the image.
+      PYTHONPATH: /var/task
     volumes:
       - ./scripts:/scripts:ro
-      # Writable, for the codes file.
-      - ./data:/data
+      - ${GOOGLE_KEY_PATH:-/dev/null}:/secrets/google-key.json:ro
       # Writable, so an expired AWS sign-in can refresh.
       - ~/.aws:/root/.aws
 

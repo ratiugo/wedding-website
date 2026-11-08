@@ -1,33 +1,33 @@
 """
-Guest list loading tests, with a mock in place of the DynamoDB table.
+Guest loading tests, with mocks in place of the DynamoDB table and the sheet.
 """
 
 from unittest.mock import MagicMock
 
 import load_guests
-from load_guests import CODE_ALPHABET, add, read_guest_list
+from load_guests import CODE_ALPHABET, add, read_invite_list, write_codes
+
+HEADER = ["Invitation", "Guests", "Children", "Plus one", "Plus one name", "Email"]
 
 
-def guest_list(tmp_path, text):
+def invite_list(*rows, header=None):
     """
-    Write a guest list CSV and read it back.
+    Read Invite list rows, given as lists in HEADER's column order.
     """
-    path = tmp_path / "guests.csv"
-    path.write_text(text, encoding="utf-8")
-    return read_guest_list(path)
+    return read_invite_list(header or HEADER, [list(row) for row in rows])
 
 
-GUESTS = """invitation,email,name,plus_one,child
-"Morgan, Sam & Ellie",morgan@example.com,Morgan Rivera,,
-"Morgan, Sam & Ellie",,Sam Rivera,,
-"Morgan, Sam & Ellie",,Ellie Rivera,,Yes
-Jamie,,Jamie Lee,,
-Jamie,,Plus-one,yes,
-"""
-
-
-def test_rows_are_grouped_into_invitations(tmp_path):
-    invitations, problems = guest_list(tmp_path, GUESTS)
+def test_a_row_is_an_invitation():
+    invitations, problems = invite_list(
+        [
+            "Morgan, Sam & Ellie",
+            "Morgan Rivera, Sam Rivera, Ellie Rivera",
+            "Ellie Rivera",
+            "No",
+            "",
+            "morgan@example.com",
+        ]
+    )
 
     assert not problems
     assert invitations == [
@@ -39,45 +39,61 @@ def test_rows_are_grouped_into_invitations(tmp_path):
                 {"name": "Sam Rivera", "plus_one": False, "child": False},
                 {"name": "Ellie Rivera", "plus_one": False, "child": True},
             ],
-        },
-        {
-            "label": "Jamie",
-            "email": "",
-            "guests": [
-                {"name": "Jamie Lee", "plus_one": False, "child": False},
-                {"name": "Plus-one", "plus_one": True, "child": False},
-            ],
-        },
+            "row": 2,
+        }
     ]
 
 
-def test_problems_are_listed_by_row(tmp_path):
-    _, problems = guest_list(
-        tmp_path,
-        "invitation,email,name,plus_one,child\n"
-        "Jamie,jamie@example.com,Jamie Lee,no,\n"
-        "Jamie,other@example.com,Plus-one,yes,\n"
-        ",,Nobody,,\n"
-        "Sam,not-an-email,Sam,,\n",
+def test_a_plus_one_is_added_as_a_guest():
+    invitations, _ = invite_list(["Jamie", "Jamie Lee", "", "Yes", "", ""])
+    assert invitations[0]["guests"][1] == {
+        "name": "Plus-one",
+        "plus_one": True,
+        "child": False,
+    }
+
+
+def test_a_known_plus_one_keeps_their_name():
+    invitations, _ = invite_list(["Jamie", "Jamie Lee", "", "Yes", "Alex Kim", ""])
+    assert invitations[0]["guests"][1]["name"] == "Alex Kim"
+
+
+def test_rows_without_an_invitation_are_skipped():
+    invitations, _ = read_invite_list(
+        ["Invitation", "Guests", "Notes"],
+        [["Tess & Colton", "Tess, Colton", "Us, no invitation"], ["", "", ""]],
+    )
+    assert not invitations
+
+
+def test_problems_are_listed_by_row():
+    _, problems = invite_list(
+        ["Jamie", "", "", "", "", ""],
+        ["Sam", "Sam Lee", "Ellie", "Maybe", "", "not-an-email"],
+        ["Sam", "Sam Lee", "", "", "", ""],
     )
 
     assert problems == [
-        "Row 2: plus_one should be blank or yes, not no",
-        "Row 3: Jamie already has a different email",
-        "Row 4: needs an invitation and a name",
-        "Row 5: not-an-email isn't an email address",
+        "Row 2: needs Guests",
+        "Row 3: Ellie in Children isn't one of the Guests",
+        "Row 3: Plus one should be Yes, No or blank, not maybe",
+        "Row 3: not-an-email isn't an email address",
+        "Sam is in the list more than once",
     ]
 
 
-def test_a_guest_list_needs_invitation_and_name_columns(tmp_path):
-    assert guest_list(tmp_path, "label,guest\nJamie,Jamie Lee\n") == (
+def test_the_invite_list_needs_invitation_and_guests_columns():
+    assert invite_list(["Jamie"], header=["Name"]) == (
         [],
-        ["Missing column(s): invitation, name"],
+        ["Missing column(s): Guests, Invitation"],
     )
 
 
-def test_invitations_are_added_with_new_codes_without_overwriting(tmp_path):
-    invitations, _ = guest_list(tmp_path, GUESTS)
+def test_invitations_are_added_with_new_codes_without_overwriting():
+    invitations, _ = invite_list(
+        ["Jamie", "Jamie Lee", "", "Yes", "", ""],
+        ["Sam", "Sam Lee", "", "", "", "sam@example.com"],
+    )
     table = MagicMock()
 
     items = add(table, invitations, {"TAKEN123"})
@@ -90,17 +106,8 @@ def test_invitations_are_added_with_new_codes_without_overwriting(tmp_path):
     assert {kwargs["ConditionExpression"] for kwargs in added} == {
         "attribute_not_exists(invite_code)"
     }
-    assert items[0]["email"] == "morgan@example.com"
-    assert items[1]["email"] is None
-    assert items[1]["guests"][1] == {
-        "id": 2,
-        "name": "Plus-one",
-        "plus_one": True,
-        "child": False,
-        "attending": None,
-        "events": {},
-        "dietary": "",
-    }
+    assert items[0]["email"] is None
+    assert items[1]["email"] == "sam@example.com"
 
 
 def test_new_codes_avoid_taken_ones(monkeypatch):
@@ -108,3 +115,15 @@ def test_new_codes_avoid_taken_ones(monkeypatch):
     monkeypatch.setattr(load_guests.secrets, "choice", lambda _: next(picks))
 
     assert load_guests.new_code({"AAAAAAAA"}) == "BBBBBBBB"
+
+
+def test_codes_are_written_to_each_invitations_row():
+    worksheet = MagicMock()
+    invitations = [{"label": "Jamie", "row": 5}]
+    items = [{"label": "Jamie", "invite_code": "H7KM3QPX"}]
+
+    write_codes(worksheet, ["Invitation", "Guests", "Invite code"], invitations, items)
+
+    worksheet.batch_update.assert_called_once_with(
+        [{"range": "C5", "values": [["H7KM-3QPX"]]}]
+    )

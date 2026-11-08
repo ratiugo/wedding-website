@@ -1,8 +1,5 @@
-invitation,email,name,plus_one,child
-"Morgan, Sam & Ellie",morgan@example.com,Morgan Rivera,,
-"Morgan, Sam & Ellie",,Sam Rivera,,
-"Morgan, Sam & Ellie",,Ellie Rivera,,yes
-Priya & Dev,priya@example.com,Priya Shah,,
-Priya & Dev,,Dev Shah,,
-Jamie,,Jamie Lee,,
-Jamie,,Plus-one,yes,
+Invitation,Guests,Children,Plus one,Plus one name,Email,Notes
+Tess & Colton,"Tess Osborne, Colton Williams",,No,,,"us, no invitation"
+"Morgan, Sam & Ellie","Morgan Rivera, Sam Rivera, Ellie Rivera",Ellie Rivera,No,,morgan@example.com,
+Priya & Dev,"Priya Shah, Dev Shah",,No,,priya@example.com,
+Jamie,Jamie Lee,,Yes,,,
