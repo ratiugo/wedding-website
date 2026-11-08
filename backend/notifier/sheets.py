@@ -10,7 +10,13 @@ from zoneinfo import ZoneInfo
 import gspread
 
 from events import EVENTS, coming_to
-from invite_list import INVITE_CODE, RSVP_COLUMNS, TAB, column_numbers, plain_code
+from invite_list import (
+    INVITE_CODE,
+    RSVP_COLUMNS,
+    INVITE_LIST_WORKSHEET,
+    column_numbers,
+    plain_code,
+)
 
 TIMEZONE = ZoneInfo("America/Vancouver")
 
@@ -28,7 +34,9 @@ class InviteListSheet:
         Open a workbook's Invite list, given the service account's key (a dict).
         """
         client = gspread.service_account_from_dict(service_account_key)
-        self.worksheet = client.open_by_key(spreadsheet_id).worksheet(TAB)
+        self.worksheet = client.open_by_key(spreadsheet_id).worksheet(
+            INVITE_LIST_WORKSHEET
+        )
 
     def apply(self, event):
         """
@@ -42,7 +50,8 @@ class InviteListSheet:
         missing = [name for name in [INVITE_CODE, *RSVP_COLUMNS] if name not in columns]
         if missing:
             raise ValueError(
-                f"The {TAB} has no {', '.join(missing)} column; run make sheet-setup"
+                f"The {INVITE_LIST_WORKSHEET} has no {', '.join(missing)} column;"
+                " run make sheet-setup"
             )
 
         invite_code = event["invitation"]["invite_code"]
@@ -53,7 +62,11 @@ class InviteListSheet:
             if plain_code(code) == invite_code
         ]
         if not rows:
-            logger.error("No row in the %s has invite code %s", TAB, invite_code)
+            logger.error(
+                "No row in the %s has invite code %s",
+                INVITE_LIST_WORKSHEET,
+                invite_code,
+            )
             return
 
         self.worksheet.batch_update(

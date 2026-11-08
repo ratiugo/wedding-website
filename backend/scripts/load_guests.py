@@ -26,7 +26,7 @@ import sys
 import boto3
 import gspread
 
-from invite_list import INVITE_CODE, TAB, column_numbers, printed_code
+from invite_list import INVITE_CODE, INVITE_LIST_WORKSHEET, column_numbers, printed_code
 
 # Letters and digits, minus the lookalikes 0/O and 1/I/L.
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -79,7 +79,9 @@ def open_invite_list():
     """
     with open(os.environ["GOOGLE_KEY_FILE"], encoding="utf-8") as key_file:
         client = gspread.service_account_from_dict(json.load(key_file))
-    return client.open_by_key(os.environ["GOOGLE_SHEET_ID"]).worksheet(TAB)
+    return client.open_by_key(os.environ["GOOGLE_SHEET_ID"]).worksheet(
+        INVITE_LIST_WORKSHEET
+    )
 
 
 def read_invite_list(header, rows):

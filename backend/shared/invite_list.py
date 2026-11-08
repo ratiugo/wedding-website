@@ -10,10 +10,12 @@ import re
 
 from events import EVENTS
 
-TAB = "Invite list"
+# The worksheet (tab) in the planning workbook.
+INVITE_LIST_WORKSHEET = "Invite list"
 
-# Columns we fill in, rather than edit: Invite code by the loader, the rest by the
-# notifier.
+# The website's columns, which are never edited by hand. The guest loader writes each
+# invitation's code, and the notifier writes the RSVP columns from guests' answers.
+# Each is named once here, so a column can be renamed by changing it here.
 INVITE_CODE = "Invite code"
 RSVP_COLUMNS = [
     "Responded",

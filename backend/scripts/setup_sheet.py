@@ -16,7 +16,7 @@ import os
 import gspread
 
 from events import EVENTS
-from invite_list import INVITE_CODE, RSVP_COLUMNS, TAB, column_numbers
+from invite_list import INVITE_CODE, RSVP_COLUMNS, INVITE_LIST_WORKSHEET, column_numbers
 
 SUMMARY_TAB = "RSVP summary"
 # The website's column headers are shaded, to set them apart from the columns we edit.
@@ -82,7 +82,7 @@ def summary(header):
         An Invite list column below its header, like 'Invite list'!U2:U.
         """
         letter = gspread.utils.rowcol_to_a1(1, columns[name]).rstrip("1")
-        return f"'{TAB}'!{letter}2:{letter}"
+        return f"'{INVITE_LIST_WORKSHEET}'!{letter}2:{letter}"
 
     def listed(name):
         """
@@ -211,10 +211,10 @@ def main():
         client = gspread.service_account_from_dict(json.load(key_file))
     spreadsheet = client.open_by_key(os.environ["GOOGLE_SHEET_ID"])
 
-    worksheet = spreadsheet.worksheet(TAB)
+    worksheet = spreadsheet.worksheet(INVITE_LIST_WORKSHEET)
     header = add_columns(worksheet)
     mark_columns(worksheet, header)
-    print(f"{TAB} has the {INVITE_CODE} and RSVP columns")
+    print(f"{INVITE_LIST_WORKSHEET} has the {INVITE_CODE} and RSVP columns")
     if SUMMARY_TAB in [tab.title for tab in spreadsheet.worksheets()]:
         print(f"{SUMMARY_TAB} already exists, left as is")
     else:
