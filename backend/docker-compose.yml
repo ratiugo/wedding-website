@@ -1,7 +1,8 @@
 services:
   rsvp:
     build:
-      context: ./rsvp
+      context: .
+      dockerfile: rsvp/Dockerfile
       target: runtime
     ports:
       - "9000:8080"
@@ -26,7 +27,8 @@ services:
   sheet-setup:
     profiles: [tools]
     build:
-      context: ./notifier
+      context: .
+      dockerfile: notifier/Dockerfile
       target: runtime
     entrypoint: ["python", "/scripts/setup_sheet.py"]
     environment:
@@ -44,7 +46,8 @@ services:
   load-guests:
     profiles: [tools]
     build:
-      context: ./rsvp
+      context: .
+      dockerfile: rsvp/Dockerfile
       target: runtime
     entrypoint: ["python", "/scripts/load_guests.py"]
     environment:
@@ -62,7 +65,8 @@ services:
   send-update:
     profiles: [tools]
     build:
-      context: ./rsvp
+      context: .
+      dockerfile: rsvp/Dockerfile
       target: runtime
     entrypoint: ["python", "/scripts/send_update.py"]
     environment:
@@ -91,7 +95,8 @@ services:
   rsvp-test:
     profiles: [test]
     build:
-      context: ./rsvp
+      context: .
+      dockerfile: rsvp/Dockerfile
       target: test
     command: ["rsvp/tests", "scripts/tests"]
     environment:
@@ -102,14 +107,15 @@ services:
       SITE_URL: https://example.com
       SENDER: Us <hello@example.com>
       REPLY_TO: us@example.com
-      PYTHONPATH: /backend/rsvp:/backend/scripts:/backend/notifier:/var/task
+      PYTHONPATH: /backend/rsvp:/backend/scripts:/backend/notifier:/backend/shared:/var/task
     volumes:
       - ./:/backend
 
   notifier-test:
     profiles: [test]
     build:
-      context: ./notifier
+      context: .
+      dockerfile: notifier/Dockerfile
       target: test
     command: ["notifier/tests"]
     environment:

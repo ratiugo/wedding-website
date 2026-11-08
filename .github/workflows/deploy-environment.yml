@@ -37,7 +37,7 @@ jobs:
             if aws ecr describe-images --repository-name "wedding/$lambda" --image-ids "imageTag=$COMMIT" > /dev/null 2>&1; then
               echo "$image already exists"
             else
-              docker build --provenance=false --target runtime -t "$image" "backend/$lambda"
+              docker build --provenance=false --target runtime -t "$image" -f "backend/$lambda/Dockerfile" backend
               docker push "$image"
             fi
           done

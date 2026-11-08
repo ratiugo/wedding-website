@@ -2,7 +2,8 @@
 # so the same image runs locally (docker compose) and in Lambda.
 FROM public.ecr.aws/lambda/python:3.13 AS runtime
 
-COPY *.py ${LAMBDA_TASK_ROOT}/
+# Built from backend/ (see docker-compose.yml), so shared/ can be copied in too.
+COPY rsvp/*.py shared/*.py ${LAMBDA_TASK_ROOT}/
 
 CMD ["handler.lambda_handler"]
 
@@ -11,9 +12,9 @@ CMD ["handler.lambda_handler"]
 # backend/ is mounted at /backend by docker compose, so edits don't need a rebuild.
 FROM runtime AS test
 
-COPY requirements-dev.txt .
+COPY rsvp/requirements-dev.txt .
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
-ENV PYTHONPATH=/backend/rsvp:${LAMBDA_TASK_ROOT}
+ENV PYTHONPATH=/backend/rsvp:/backend/shared:${LAMBDA_TASK_ROOT}
 WORKDIR /backend
 ENTRYPOINT ["python", "-m", "pytest"]

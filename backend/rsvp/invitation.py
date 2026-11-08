@@ -17,16 +17,13 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from db import Database
+from events import EVENTS
 
 logger = logging.getLogger(__name__)
 
 database = Database(os.environ["INVITATIONS_TABLE"])
 s3 = boto3.client("s3")
 RSVP_BUCKET = os.environ.get("RSVP_BUCKET")
-
-# The weekend events, besides the wedding, that guests coming to the wedding are asked
-# about, by id. notifier/events.py has the same list for the sheet and emails.
-EVENTS = {"bbq": "Friday BBQ", "brunch": "Sunday brunch"}
 
 
 class BadRequest(Exception):

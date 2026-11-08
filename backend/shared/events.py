@@ -1,6 +1,7 @@
 """
 The weekend events, besides the wedding, that guests coming to the wedding are asked
-about, by id. rsvp/invitation.py has the same list for the RSVP form.
+about, by id. Both Lambda images include this file, so the RSVP form, the API, the
+Google Sheet and the emails all use this one list.
 """
 
 EVENTS = {"bbq": "Friday BBQ", "brunch": "Sunday brunch"}

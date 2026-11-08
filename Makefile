@@ -68,5 +68,5 @@ format:
 # Check formatting (black) and code quality (pylint) without changing anything.
 lint:
 	$(COMPOSE) run --rm --build --no-deps --entrypoint black rsvp-test --check .
-	$(COMPOSE) run --rm --no-deps --entrypoint pylint rsvp-test rsvp scripts --ignore=setup_sheet.py
+	$(COMPOSE) run --rm --no-deps --entrypoint pylint rsvp-test rsvp shared scripts --ignore=setup_sheet.py
 	$(COMPOSE) run --rm --build --entrypoint pylint notifier-test notifier scripts/setup_sheet.py
