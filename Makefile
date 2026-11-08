@@ -11,6 +11,7 @@ COMPOSE = $(DOCKER) compose -f backend/docker-compose.yml
 # Environment for sheet-setup, load-guests and send-update: dev (default) or prod.
 ENV ?= dev
 SITE_URL = https://$(if $(filter prod,$(ENV)),tessandcolton.com,dev.tessandcolton.com)
+SHEET_ID = $(if $(filter prod,$(ENV)),$(PROD_GOOGLE_SHEET_ID),$(DEV_GOOGLE_SHEET_ID))
 
 .PHONY: start stop sheet-setup load-guests send-update test format lint
 
@@ -18,7 +19,7 @@ SITE_URL = https://$(if $(filter prod,$(ENV)),tessandcolton.com,dev.tessandcolto
 # then serve the site and API (Ctrl+C to stop).
 start:
 	$(COMPOSE) up --build -d --wait --remove-orphans
-	$(COMPOSE) exec rsvp python /scripts/local_aws.py
+	$(COMPOSE) run --rm --build local-aws
 	python3 backend/scripts/dev_server.py
 
 # Stop the containers. The fake AWS keeps nothing, so the next start begins with just
@@ -26,21 +27,17 @@ start:
 stop:
 	$(COMPOSE) down
 
-# Create the Guests and Summary tabs in dev's Google Sheet, if missing, or in prod's
-# with `make sheet-setup ENV=prod` (sheet ids in backend/.env).
+# Add the Invite code and RSVP columns to dev's planning workbook, and its RSVP summary
+# tab, if missing, or to prod's with `make sheet-setup ENV=prod` (ids in backend/.env).
 sheet-setup:
-	GOOGLE_SHEET_ID=$(if $(filter prod,$(ENV)),$(PROD_GOOGLE_SHEET_ID),$(DEV_GOOGLE_SHEET_ID)) \
-		$(COMPOSE) run --rm --build sheet-setup
+	GOOGLE_SHEET_ID=$(SHEET_ID) $(COMPOSE) run --rm --build sheet-setup
 
-# Add the invitations in dev's guest list (backend/data/guests.dev.csv) that aren't in
-# its table yet, or prod's (guests.csv) with ENV=prod, after showing them and asking.
-# Then writes each invitation's code and RSVP link to backend/data/codes.<env>.csv.
+# Add the invitations in dev's planning workbook's Invite list that aren't in its table
+# yet, or prod's with ENV=prod, after showing them and asking. Then writes each
+# invitation's code into the Invite list.
 load-guests:
-	$(COMPOSE) run --rm --build \
-		-e INVITATIONS_TABLE=wedding-$(ENV)-invitations \
-		-e SITE_URL=$(SITE_URL) \
-		load-guests /data/$(if $(filter prod,$(ENV)),guests.csv,guests.dev.csv) \
-		--codes /data/codes.$(ENV).csv
+	GOOGLE_SHEET_ID=$(SHEET_ID) $(COMPOSE) run --rm --build \
+		-e INVITATIONS_TABLE=wedding-$(ENV)-invitations load-guests
 
 # Send the update in FILE, a message file in updates/ (see scripts/send_update.py).
 # Uses UPDATE_SENDER and REPLY_TO from backend/.env.

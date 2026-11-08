@@ -1,3 +1,5 @@
 pytest==8.4.2
 black==25.9.0
 pylint==3.3.8
+# For testing scripts/load_guests.py, which reads the planning workbook.
+gspread==6.1.4

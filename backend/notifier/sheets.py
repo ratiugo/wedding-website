@@ -1,97 +1,107 @@
 """
-Updates the 'Guests' worksheet (initialized in scripts/setup_sheet.py) as RSVP
-events happen.
+Fills in each invitation's RSVP columns on the planning workbook's Invite list (see
+shared/invite_list.py), as RSVP events happen.
 """
 
+import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import gspread
 
 from events import EVENTS, coming_to
+from invite_list import (
+    INVITE_CODE,
+    RSVP_COLUMNS,
+    INVITE_LIST_WORKSHEET,
+    column_numbers,
+    plain_code,
+)
 
 TIMEZONE = ZoneInfo("America/Vancouver")
 
-HEADER = [
-    "Invitation",
-    "Invite code",
-    "Guest",
-    "Status",
-    "Child",
-    "Plus-one",
-    "Dietary",
-    "Note",
-    *EVENTS.values(),
-    "Updated",
-]
+logger = logging.getLogger(__name__)
 
 
-class GuestSheet:
+class InviteListSheet:
     """
-    Writes RSVPs to the spreadsheet's Guests worksheet, signed in as the Google
-    service account the spreadsheet is shared with.
+    Writes RSVPs to the Invite list, signed in as the Google service account the
+    workbook is shared with.
     """
 
     def __init__(self, spreadsheet_id, service_account_key):
         """
-        Open a spreadsheet's Guests worksheet, given the service account's key (a dict).
+        Open a workbook's Invite list, given the service account's key (a dict).
         """
         client = gspread.service_account_from_dict(service_account_key)
-        self.worksheet = client.open_by_key(spreadsheet_id).worksheet("Guests")
+        self.worksheet = client.open_by_key(spreadsheet_id).worksheet(
+            INVITE_LIST_WORKSHEET
+        )
 
     def apply(self, event):
         """
-        Write an RSVP event's guests to the worksheet, one row per guest.
+        Write an RSVP event into its invitation's RSVP columns, in the row with its
+        invite code.
 
-        If the invite code is already in the worksheet (they've responded before), its
-        rows are overwritten in place; an invitation's guests never change, so it's the
-        same number of rows. Otherwise the rows are appended.
+        Raises ValueError if the Invite list is missing any of those columns. If no
+        row has the invite code (the row was deleted), it's logged and skipped.
         """
-        rows = self.guest_rows(event)
-        existing_invite_codes = self.worksheet.col_values(
-            HEADER.index("Invite code") + 1
-        )
+        columns = column_numbers(self.worksheet.row_values(1))
+        missing = [name for name in [INVITE_CODE, *RSVP_COLUMNS] if name not in columns]
+        if missing:
+            raise ValueError(
+                f"The {INVITE_LIST_WORKSHEET} has no {', '.join(missing)} column;"
+                " run make sheet-setup"
+            )
 
         invite_code = event["invitation"]["invite_code"]
-        invitation_row_numbers = [
-            row_number
-            for row_number, existing in enumerate(existing_invite_codes, start=1)
-            if existing == invite_code
+        codes = self.worksheet.col_values(columns[INVITE_CODE])
+        rows = [
+            row
+            for row, code in enumerate(codes, start=1)
+            if plain_code(code) == invite_code
         ]
-        if invitation_row_numbers:
-            first = f"A{invitation_row_numbers[0]}"
-            last = gspread.utils.rowcol_to_a1(invitation_row_numbers[-1], len(HEADER))
-            self.worksheet.update(values=rows, range_name=f"{first}:{last}")
-        else:
-            self.worksheet.append_rows(rows)
+        if not rows:
+            logger.error(
+                "No row in the %s has invite code %s",
+                INVITE_LIST_WORKSHEET,
+                invite_code,
+            )
+            return
 
-    def guest_rows(self, event):
-        """
-        Return one row per guest on the invitation, in HEADER's column order.
-        """
-        invitation = event["invitation"]
-        responded = datetime.fromisoformat(invitation["responded_at"])
-        return [
+        self.worksheet.batch_update(
             [
-                invitation["label"],
-                invitation["invite_code"],
-                guest["name"],
-                "Coming" if guest["attending"] else "Not coming",
-                "Yes" if guest["child"] else "No",
-                "Yes" if guest["plus_one"] else "No",
-                guest["dietary"],
-                invitation["notes"],
-                *[event_status(guest, event) for event in EVENTS],
-                f"{responded.astimezone(TIMEZONE):%Y-%m-%d %H:%M}",
+                {
+                    "range": gspread.utils.rowcol_to_a1(rows[0], columns[name]),
+                    "values": [[value]],
+                }
+                for name, value in rsvp_values(event["invitation"]).items()
             ]
-            for guest in invitation["guests"]
-        ]
+        )
 
 
-def event_status(guest, event):
+def rsvp_values(invitation):
     """
-    A guest's answer for a weekend event, blank if they aren't coming to the wedding.
+    An invitation's value for each of RSVP_COLUMNS: who's coming and not, counts of
+    adults, children and each weekend event, and dietary needs and the note.
     """
-    if not guest["attending"]:
-        return ""
-    return "Coming" if coming_to(guest, event) else "Not coming"
+    coming = [guest for guest in invitation["guests"] if guest["attending"]]
+    not_coming = [guest for guest in invitation["guests"] if not guest["attending"]]
+    responded = datetime.fromisoformat(invitation["responded_at"])
+    return {
+        "Responded": f"{responded.astimezone(TIMEZONE):%Y-%m-%d %H:%M}",
+        "Coming": ", ".join(guest["name"] for guest in coming),
+        "Not coming": ", ".join(guest["name"] for guest in not_coming),
+        "Adults coming": sum(not guest["child"] for guest in coming),
+        "Children coming": sum(guest["child"] for guest in coming),
+        **{
+            title: sum(coming_to(guest, event) for guest in coming)
+            for event, title in EVENTS.items()
+        },
+        "Dietary": "; ".join(
+            f"{guest['name']}: {guest['dietary']}"
+            for guest in coming
+            if guest["dietary"]
+        ),
+        "RSVP note": invitation["notes"],
+    }

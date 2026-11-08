@@ -2,10 +2,10 @@
 Notifier Lambda, triggered by each RSVP event the RSVP Lambda writes to the
 RSVP_BUCKET S3 bucket (rsvps/*.json).
 
-Each event updates the invitation's rows in the Google Sheet (see sheets.py), is
-emailed to us (see notification.py), and is confirmed to the guests (see
-confirmation.py). The SSM SecureString GOOGLE_SHEET_PARAMETER holds
-{"sheet_id": ..., "service_account_key": {...}}.
+Each event fills in the invitation's row on the planning workbook's Invite list (see
+sheets.py), is emailed to us (see notification.py), and is confirmed to the guests
+(see confirmation.py). The SSM SecureString GOOGLE_SHEET_PARAMETER holds
+{"sheet_id": ..., "service_account_key": {...}}, with sheet_id the workbook's id.
 """
 
 import json
@@ -16,7 +16,7 @@ import boto3
 
 from confirmation import send_confirmation
 from notification import RsvpNotification
-from sheets import GuestSheet
+from sheets import InviteListSheet
 
 RSVP_BUCKET = os.environ["RSVP_BUCKET"]
 
@@ -41,8 +41,8 @@ def lambda_handler(event, _context):
     if rsvp_event["previous"] and not notification.changes():
         return
 
-    GuestSheet(google_sheet["sheet_id"], google_sheet["service_account_key"]).apply(
-        rsvp_event
-    )
+    InviteListSheet(
+        google_sheet["sheet_id"], google_sheet["service_account_key"]
+    ).apply(rsvp_event)
     notification.send()
     send_confirmation(rsvp_event)

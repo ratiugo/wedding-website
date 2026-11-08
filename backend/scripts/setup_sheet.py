@@ -1,14 +1,13 @@
 """
-Set up the wedding planning Google Sheet's Guests and Summary tabs (make sheet-setup).
+Set up the planning workbook for the website (make sheet-setup): add the Invite code
+and RSVP columns to its Invite list, and an RSVP summary tab.
 
 Runs in the notifier image, signed in with the service account key at
-GOOGLE_KEY_FILE, against the spreadsheet GOOGLE_SHEET_ID. Only missing tabs are
-created, so existing rows and edited cost cells are left alone; delete a tab and run
-this again to recreate it.
-
-Guests gets HEADER (from sheets.py) as a bold, frozen header row, and wrapping for
-the Dietary and Note columns. Summary gets formulas over the Guests columns. Both
-get fixed column widths, wide enough to read without resizing.
+GOOGLE_KEY_FILE, against the workbook GOOGLE_SHEET_ID, which must already have an
+Invite list (shared/invite_list.py) with its Invitation and People columns. Only
+missing columns and tabs are added, so it's safe to run again. The columns go after
+the last column in use (past any notes or totals to the right of the list), leaving
+one blank column between.
 """
 
 import json
@@ -17,73 +16,171 @@ import os
 import gspread
 
 from events import EVENTS
-from sheets import HEADER
+from invite_list import INVITE_CODE, RSVP_COLUMNS, INVITE_LIST_WORKSHEET, column_numbers
 
-GUESTS_COLUMN_WIDTHS = (
-    [220, 100, 160, 100, 60, 80, 200, 300] + [120] * len(EVENTS) + [140]
-)
-SUMMARY_COLUMN_WIDTHS = [260, 120]
+SUMMARY_TAB = "RSVP summary"
+# The website's column headers are shaded, to set them apart from the columns we edit.
+WEBSITE_HEADER = {
+    "textFormat": {"bold": True},
+    "backgroundColor": {"red": 0.89, "green": 0.87, "blue": 0.84},
+}
+WEBSITE_NOTE = "Filled in by the website. Don't edit these columns."
 
 
-def column(title):
+def add_columns(worksheet):
     """
-    The letter of the Guests column with a HEADER title, like "I".
+    Add whichever of the Invite code and RSVP columns the Invite list is missing, and
+    return its header row.
     """
-    return chr(ord("A") + HEADER.index(title))
+    header = worksheet.row_values(1)
+    missing = [name for name in [INVITE_CODE, *RSVP_COLUMNS] if name not in header]
+    if not missing:
+        return header
+
+    last_used = max(len(row) for row in worksheet.get_all_values())
+    first = last_used + 2
+    needed = first + len(missing) - 1
+    if worksheet.col_count < needed:
+        worksheet.add_cols(needed - worksheet.col_count)
+    start = gspread.utils.rowcol_to_a1(1, first)
+    end = gspread.utils.rowcol_to_a1(1, needed)
+    worksheet.update(values=[missing], range_name=f"{start}:{end}")
+    return worksheet.row_values(1)
 
 
-SUMMARY = [
-    ["Guests"],
-    ["Responded", "=COUNTA(Guests!C:C)-1"],
-    ["Coming", '=COUNTIF(Guests!D:D,"Coming")'],
-    ["Not coming", '=COUNTIF(Guests!D:D,"Not coming")'],
-    ["Adults coming", '=COUNTIFS(Guests!D:D,"Coming",Guests!E:E,"No")'],
-    ["Children coming", '=COUNTIFS(Guests!D:D,"Coming",Guests!E:E,"Yes")'],
-    [],
-    ["Catering"],
-    ["Cost per adult", 0],
-    ["Cost per child", 0],
-    ["Estimated catering total", "=B5*B9+B6*B10"],
-    [],
-    ["Weekend (guests coming)"],
-    *[
-        [title, f'=COUNTIF(Guests!{column(title)}:{column(title)},"Coming")']
-        for title in EVENTS.values()
-    ],
-    [],
-    ["Dietary needs (guests coming)"],
-    [
-        '=IFERROR(FILTER({Guests!C:C,Guests!G:G},Guests!D:D="Coming",'
-        'Guests!G:G<>""),"None yet")'
-    ],
-]
-
-
-def create_guests(spreadsheet):
+def mark_columns(worksheet, header):
     """
-    Add the Guests tab with its header row, column widths and wrapping.
+    Shade the website's column headers, and note on the Invite code header not to
+    edit them, wherever the columns have been moved to.
     """
-    worksheet = spreadsheet.add_worksheet("Guests", rows=1000, cols=len(HEADER))
-    worksheet.update(values=[HEADER], range_name="A1")
-    worksheet.format("1:1", {"textFormat": {"bold": True}})
-    worksheet.freeze(rows=1)
-    worksheet.format("G:H", {"wrapStrategy": "WRAP"})
-    set_column_widths(spreadsheet, worksheet, GUESTS_COLUMN_WIDTHS)
+    columns = column_numbers(header)
+    cells = [
+        gspread.utils.rowcol_to_a1(1, columns[name])
+        for name in [INVITE_CODE, *RSVP_COLUMNS]
+    ]
+    worksheet.batch_format(
+        [{"range": cell, "format": WEBSITE_HEADER} for cell in cells]
+    )
+    worksheet.update_note(cells[0], WEBSITE_NOTE)
 
 
-def create_summary(spreadsheet):
+def summary(header):
     """
-    Add the Summary tab, with its labels in column A and formulas in column B.
+    The RSVP summary tab's blocks, by their top-left cell: counts of invitations,
+    guests, drinks and weekend events (labels in column A, formulas in B), and the
+    dietary needs and guests' notes, each listed by invitation as RSVPs come in.
+
+    Each formula reads the Invite list directly, so the blocks can be moved. Only
+    invitations with a code are counted, and guest counts use the People column
+    (each invitation's number of guests). Counts of the columns we edit by hand,
+    like Invitation sent, are left out when the column isn't there.
     """
-    worksheet = spreadsheet.add_worksheet("Summary", rows=100, cols=2)
-    worksheet.update(values=SUMMARY, range_name="A1", value_input_option="USER_ENTERED")
-    set_column_widths(spreadsheet, worksheet, SUMMARY_COLUMN_WIDTHS)
+    columns = column_numbers(header)
+
+    def column(name):
+        """
+        An Invite list column below its header, like 'Invite list'!U2:U.
+        """
+        letter = gspread.utils.rowcol_to_a1(1, columns[name]).rstrip("1")
+        return f"'{INVITE_LIST_WORKSHEET}'!{letter}2:{letter}"
+
+    def listed(name):
+        """
+        A list of each invitation's value in a column, where it has one.
+        """
+        return (
+            f"=IFERROR(FILTER({{{column('Invitation')},{column(name)}}},"
+            f'{column(name)}<>""),"None yet")'
+        )
+
+    def if_column(name, *rows):
+        """
+        The rows if the Invite list has the column, otherwise none.
+        """
+        return list(rows) if name in columns else []
+
+    code, responded, people = column(INVITE_CODE), column("Responded"), column("People")
+    coming = f"SUM({column('Adults coming')})+SUM({column('Children coming')})"
+
+    def invited(*conditions):
+        """
+        A formula for the number of guests on invitations with a code, and with
+        each (column, value) condition, like ("Bride/Groom", "Bride").
+        """
+        extra = "".join(f',{column(name)},"{value}"' for name, value in conditions)
+        return f'=SUMIFS({people},{code},"<>"{extra})'
+
+    return {
+        "A1": [
+            ["Invitations"],
+            ["Total", f"=COUNTA({code})"],
+            *if_column(
+                "Save the date sent",
+                [
+                    "Save the dates sent",
+                    f"=COUNTIF({column('Save the date sent')},TRUE)",
+                ],
+            ),
+            *if_column(
+                "Invitation sent",
+                ["Invitations sent", f"=COUNTIF({column('Invitation sent')},TRUE)"],
+            ),
+            ["Responded", f"=COUNTA({responded})"],
+            ["Awaiting reply", f"=COUNTA({code})-COUNTA({responded})"],
+            [],
+            ["Guests"],
+            ["Invited", invited()],
+            *if_column(
+                "Bride/Groom",
+                *[
+                    [label, invited(("Bride/Groom", side))]
+                    for label, side in (
+                        ("Bride's side", "Bride"),
+                        ("Groom's side", "Groom"),
+                        ("Both sides", "Both"),
+                    )
+                ],
+            ),
+            *if_column(
+                "Plus one",
+                ["Plus-ones", f'=COUNTIFS({column("Plus one")},"Yes",{code},"<>")'],
+            ),
+            ["Coming", f"={coming}"],
+            ["Adults coming", f"=SUM({column('Adults coming')})"],
+            ["Children coming", f"=SUM({column('Children coming')})"],
+            ["Not coming", f'=SUMIFS({people},{responded},"<>")-({coming})'],
+            ["Awaiting reply", invited(("Responded", ""))],
+            [],
+            *if_column(
+                "Drink estimate",
+                ["Drinks"],
+                ["Drink estimate", f"=SUM({column('Drink estimate')})"],
+                [],
+            ),
+            ["Extra Events"],
+            *[[title, f"=SUM({column(title)})"] for title in EVENTS.values()],
+        ],
+        "D1": [["Dietary needs"], [listed("Dietary")]],
+        "G1": [["Notes from guests"], [listed("RSVP note")]],
+    }
 
 
-def set_column_widths(spreadsheet, worksheet, widths):
+def create_summary(spreadsheet, header):
     """
-    Set a tab's columns, from A, to the given pixel widths.
+    Add the RSVP summary tab, with bold headings and columns wide enough to read.
     """
+    worksheet = spreadsheet.add_worksheet(SUMMARY_TAB, rows=200, cols=8)
+    blocks = summary(header)
+    worksheet.batch_update(
+        [{"range": cell, "values": rows} for cell, rows in blocks.items()],
+        value_input_option="USER_ENTERED",
+    )
+    headings = [
+        f"A{row}" for row, cells in enumerate(blocks["A1"], start=1) if len(cells) == 1
+    ]
+    for cells in [*headings, "D1", "G1"]:
+        worksheet.format(cells, {"textFormat": {"bold": True}})
+    widths = [200, 80, 30, 200, 300, 30, 200, 300]
     spreadsheet.batch_update(
         {
             "requests": [
@@ -107,18 +204,22 @@ def set_column_widths(spreadsheet, worksheet, widths):
 
 def main():
     """
-    Create whichever of the Guests and Summary tabs the spreadsheet is missing.
+    Add the Invite list's missing columns, mark the website's columns, and add the
+    RSVP summary tab if it's missing.
     """
     with open(os.environ["GOOGLE_KEY_FILE"], encoding="utf-8") as key_file:
         client = gspread.service_account_from_dict(json.load(key_file))
     spreadsheet = client.open_by_key(os.environ["GOOGLE_SHEET_ID"])
-    existing = [worksheet.title for worksheet in spreadsheet.worksheets()]
-    for title, create in (("Guests", create_guests), ("Summary", create_summary)):
-        if title in existing:
-            print(f"{title} already exists, left as is")
-        else:
-            create(spreadsheet)
-            print(f"Created {title}")
+
+    worksheet = spreadsheet.worksheet(INVITE_LIST_WORKSHEET)
+    header = add_columns(worksheet)
+    mark_columns(worksheet, header)
+    print(f"{INVITE_LIST_WORKSHEET} has the {INVITE_CODE} and RSVP columns")
+    if SUMMARY_TAB in [tab.title for tab in spreadsheet.worksheets()]:
+        print(f"{SUMMARY_TAB} already exists, left as is")
+    else:
+        create_summary(spreadsheet, header)
+        print(f"Created {SUMMARY_TAB}")
 
 
 if __name__ == "__main__":
