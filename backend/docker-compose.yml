@@ -84,17 +84,16 @@ services:
     profiles: [tools]
     build:
       context: .
-      dockerfile: rsvp/Dockerfile
+      dockerfile: notifier/Dockerfile
       target: runtime
     entrypoint: ["python", "/scripts/send_update.py"]
     environment:
       AWS_PROFILE: ${AWS_PROFILE:-}
       AWS_DEFAULT_REGION: us-west-2
       HOME: /root
-      PYTHONPATH: /notifier
+      PYTHONPATH: /var/task
     volumes:
       - ./scripts:/scripts:ro
-      - ./notifier:/notifier:ro
       - ../updates:/updates
       - ~/.aws:/root/.aws
 
